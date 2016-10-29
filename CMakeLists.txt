@@ -4,6 +4,7 @@ project (jd4)
 
 add_subdirectory (deps/gflags)
 add_subdirectory (deps/glog)
+find_package (Boost COMPONENTS system thread)
 
 add_executable (jd4 main.cc)
-target_link_libraries (jd4 gflags glog)
+target_link_libraries (jd4 gflags glog ${Boost_LIBRARIES})
