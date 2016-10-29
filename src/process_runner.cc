@@ -9,10 +9,10 @@ namespace jd4 {
 ProcessRunner::ProcessRunner(boost::asio::io_service& io_service)
     : io_service_(io_service),
       signal_set_(io_service, SIGCHLD) {
-  start_signal_wait();
+  StartSignalWait();
 }
 
-void ProcessRunner::run(boost::string_view path) {
+void ProcessRunner::Run(boost::string_view path) {
   io_service_.notify_fork(boost::asio::io_service::fork_prepare);
   pid_t child_pid = fork();
   if (!child_pid) {
@@ -26,11 +26,11 @@ void ProcessRunner::run(boost::string_view path) {
   });
 }
 
-void ProcessRunner::start_signal_wait() {
-  signal_set_.async_wait(boost::bind(&ProcessRunner::handle_signal_wait, this));
+void ProcessRunner::StartSignalWait() {
+  signal_set_.async_wait(boost::bind(&ProcessRunner::HandleSignalWait, this));
 }
 
-void ProcessRunner::handle_signal_wait() {
+void ProcessRunner::HandleSignalWait() {
   siginfo_t info;
   while (!waitid(P_ALL, 0, &info, WEXITED | WNOHANG)) {
     auto child_context_iter = child_contexts_.find(info.si_pid);
@@ -38,7 +38,7 @@ void ProcessRunner::handle_signal_wait() {
     LOG(INFO) << "PID " << info.si_pid << " exited.";
   }
   CHECK_EQ(errno, ECHILD);
-  start_signal_wait();
+  StartSignalWait();
 }
 
 }

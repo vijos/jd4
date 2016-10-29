@@ -9,11 +9,11 @@ namespace jd4 {
 class ProcessRunner {
  public:
   explicit ProcessRunner(boost::asio::io_service& io_service);
-  void run(boost::string_view path);
+  void Run(boost::string_view path);
 
  private:
-  void start_signal_wait();
-  void handle_signal_wait();
+  void StartSignalWait();
+  void HandleSignalWait();
 
  private:
   struct ChildContext {
