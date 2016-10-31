@@ -6,24 +6,71 @@
 
 namespace jd4 {
 
+ProcessContext::ProcessContext(boost::asio::io_service& io_service,
+                               pid_t pid,
+                               std::chrono::steady_clock::time_point start_time,
+                               const ProcessOptions& options)
+    : pid_(pid),
+      start_time_(start_time),
+      options_(options),
+      timer_(io_service) {
+  if (options_.flags.test(ProcessOptions::LIMIT_IDLE_TIME) ||
+      options_.flags.test(ProcessOptions::LIMIT_CPU_TIME)) {
+    StartTimer();
+  }
+}
+
+void ProcessContext::StartTimer() {
+  std::chrono::nanoseconds wait_duration = std::chrono::nanoseconds::max();
+  // TODO(iceboy): Read /proc/<pid>/stat.
+  if (options_.flags.test(ProcessOptions::LIMIT_IDLE_TIME)) {
+    // TODO(iceboy): Limit idle time.
+  }
+  if (options_.flags.test(ProcessOptions::LIMIT_CPU_TIME)) {
+    // TODO(iceboy): Limit CPU time.
+  }
+  timer_.expires_from_now(wait_duration);
+  timer_.async_wait(boost::bind(&ProcessContext::HandleTimer, this, _1));
+}
+
+void ProcessContext::HandleTimer(const boost::system::error_code& error_code) {
+  if (error_code == boost::asio::error::operation_aborted) {
+    return;
+  }
+  CHECK(!error_code) << error_code.message();
+  StartTimer();
+}
+
 ProcessRunner::ProcessRunner(boost::asio::io_service& io_service)
     : io_service_(io_service),
       signal_set_(io_service, SIGCHLD) {
   StartSignalWait();
 }
 
-void ProcessRunner::Run(boost::string_view path) {
+void ProcessRunner::Run(boost::string_view path,
+                        const ProcessOptions& options) {
   io_service_.notify_fork(boost::asio::io_service::fork_prepare);
   pid_t child_pid = fork();
   if (!child_pid) {
     io_service_.notify_fork(boost::asio::io_service::fork_child);
+    if (options.flags.test(ProcessOptions::REDIRECT_STDIN)) {
+      CHECK_EQ(dup2(options.stdin_fd, STDIN_FILENO), STDIN_FILENO);
+    }
+    if (options.flags.test(ProcessOptions::REDIRECT_STDOUT)) {
+      CHECK_EQ(dup2(options.stdout_fd, STDOUT_FILENO), STDOUT_FILENO);
+    }
+    if (options.flags.test(ProcessOptions::REDIRECT_STDERR)) {
+      CHECK_EQ(dup2(options.stderr_fd, STDERR_FILENO), STDERR_FILENO);
+    }
     LOG(FATAL) << "Child process not implemented.";
   }
   CHECK_GT(child_pid, 0);
   io_service_.notify_fork(boost::asio::io_service::fork_parent);
-  child_contexts_.emplace(child_pid, ChildContext {
-      .start_time = boost::posix_time::microsec_clock::universal_time(),
-  });
+  child_contexts_.emplace(
+      std::piecewise_construct,
+      std::forward_as_tuple(child_pid),
+      std::forward_as_tuple(
+          io_service_, child_pid, std::chrono::steady_clock::now(), options));
 }
 
 void ProcessRunner::StartSignalWait() {
