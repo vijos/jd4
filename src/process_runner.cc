@@ -50,7 +50,7 @@ void ProcessContext::StartTimer() {
     std::chrono::nanoseconds cpu_time_elapsed(
         nanoseconds_per_tick_ * (user_time + system_time));
     if (cpu_time_elapsed >= options_.cpu_time_limit) {
-      kill(pid_, SIGKILL);
+      CHECK_EQ(kill(pid_, SIGKILL), 0);
       return;
     }
     wait_duration = min(wait_duration,
