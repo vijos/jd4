@@ -42,6 +42,7 @@ class ProcessContext {
   const pid_t pid_;
   const ProcessOptions options_;
   boost::asio::steady_timer timer_;
+  const int64_t nanoseconds_per_tick_;
 };
 
 class ProcessRunner {

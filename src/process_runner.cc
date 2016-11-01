@@ -3,6 +3,19 @@
 #include <sys/wait.h>
 #include <glog/logging.h>
 #include <boost/bind.hpp>
+#include <boost/format.hpp>
+
+namespace {
+
+const std::chrono::nanoseconds kMinWaitDuration = std::chrono::milliseconds(10);
+
+int64_t get_nanoseconds_per_tick() {
+  long ticks_per_second = sysconf(_SC_CLK_TCK);
+  CHECK_GT(ticks_per_second, 0);
+  return std::nano::den / (std::nano::num * ticks_per_second);
+}
+
+}
 
 namespace jd4 {
 
@@ -11,7 +24,8 @@ ProcessContext::ProcessContext(boost::asio::io_service& io_service,
                                const ProcessOptions& options)
     : pid_(pid),
       options_(options),
-      timer_(io_service) {
+      timer_(io_service),
+      nanoseconds_per_tick_(get_nanoseconds_per_tick()) {
   if (options_.flags.test(ProcessOptions::LIMIT_IDLE_TIME) ||
       options_.flags.test(ProcessOptions::LIMIT_CPU_TIME)) {
     StartTimer();
@@ -24,9 +38,25 @@ void ProcessContext::StartTimer() {
     // TODO(iceboy): Limit idle time (/proc/stat).
   }
   if (options_.flags.test(ProcessOptions::LIMIT_CPU_TIME)) {
-    // TODO(iceboy): Limit CPU time.
+    FILE* pid_stat_fd = fopen(
+        (boost::format("/proc/%d/stat") % pid_).str().c_str(), "r");
+    CHECK(pid_stat_fd);
+    unsigned long user_time, system_time;
+    CHECK_EQ(fscanf(
+        pid_stat_fd,
+        "%*d %*s %*c %*d %*d %*d %*d %*d %*u %*u %*u %*u %*u %lu %lu",
+        &user_time, &system_time), 2);
+    CHECK_EQ(fclose(pid_stat_fd), 0);
+    std::chrono::nanoseconds cpu_time_elapsed(
+        nanoseconds_per_tick_ * (user_time + system_time));
+    if (cpu_time_elapsed >= options_.cpu_time_limit) {
+      kill(pid_, SIGKILL);
+      return;
+    }
+    wait_duration = min(wait_duration,
+                        options_.cpu_time_limit - cpu_time_elapsed);
   }
-  timer_.expires_from_now(wait_duration);
+  timer_.expires_from_now(max(wait_duration, kMinWaitDuration));
   timer_.async_wait(boost::bind(&ProcessContext::HandleTimer, this, _1));
 }
 
@@ -75,7 +105,7 @@ void ProcessRunner::StartSignalWait() {
 
 void ProcessRunner::HandleSignalWait() {
   siginfo_t info;
-  while (!waitid(P_ALL, 0, &info, WEXITED | WNOHANG)) {
+  while (!waitid(P_ALL, 0, &info, WNOHANG | WEXITED)) {
     auto child_context_iter = child_contexts_.find(info.si_pid);
     child_contexts_.erase(child_context_iter);
     LOG(INFO) << "PID " << info.si_pid << " exited.";
