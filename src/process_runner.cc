@@ -8,10 +8,8 @@ namespace jd4 {
 
 ProcessContext::ProcessContext(boost::asio::io_service& io_service,
                                pid_t pid,
-                               std::chrono::steady_clock::time_point start_time,
                                const ProcessOptions& options)
     : pid_(pid),
-      start_time_(start_time),
       options_(options),
       timer_(io_service) {
   if (options_.flags.test(ProcessOptions::LIMIT_IDLE_TIME) ||
@@ -22,9 +20,8 @@ ProcessContext::ProcessContext(boost::asio::io_service& io_service,
 
 void ProcessContext::StartTimer() {
   std::chrono::nanoseconds wait_duration = std::chrono::nanoseconds::max();
-  // TODO(iceboy): Read /proc/<pid>/stat.
   if (options_.flags.test(ProcessOptions::LIMIT_IDLE_TIME)) {
-    // TODO(iceboy): Limit idle time.
+    // TODO(iceboy): Limit idle time (/proc/stat).
   }
   if (options_.flags.test(ProcessOptions::LIMIT_CPU_TIME)) {
     // TODO(iceboy): Limit CPU time.
@@ -69,8 +66,7 @@ void ProcessRunner::Run(boost::string_view path,
   child_contexts_.emplace(
       std::piecewise_construct,
       std::forward_as_tuple(child_pid),
-      std::forward_as_tuple(
-          io_service_, child_pid, std::chrono::steady_clock::now(), options));
+      std::forward_as_tuple(io_service_, child_pid, options));
 }
 
 void ProcessRunner::StartSignalWait() {

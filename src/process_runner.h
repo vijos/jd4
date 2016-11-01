@@ -32,7 +32,6 @@ class ProcessContext {
  public:
   explicit ProcessContext(boost::asio::io_service& io_service,
                           pid_t pid,
-                          std::chrono::steady_clock::time_point start_time,
                           const ProcessOptions& options);
 
  private:
@@ -41,8 +40,7 @@ class ProcessContext {
 
  private:
   const pid_t pid_;
-  const std::chrono::steady_clock::time_point start_time_;
-  const ProcessOptions& options_;
+  const ProcessOptions options_;
   boost::asio::steady_timer timer_;
 };
 
