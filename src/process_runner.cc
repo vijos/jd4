@@ -23,8 +23,7 @@ ProcessContext::ProcessContext(boost::asio::io_service& io_service,
                                const ProcessOptions& options)
     : pid_(pid),
       options_(options),
-      timer_(io_service),
-      nanoseconds_per_tick_(GetNanosecondsPerTick()) {
+      timer_(io_service) {
   if (options_.flags.test(ProcessOptions::LIMIT_IDLE_TIME) ||
       options_.flags.test(ProcessOptions::LIMIT_CPU_TIME)) {
     StartTimer();
@@ -32,9 +31,41 @@ ProcessContext::ProcessContext(boost::asio::io_service& io_service,
 }
 
 void ProcessContext::StartTimer() {
+  static const int64_t nanoseconds_per_tick = GetNanosecondsPerTick();
   std::chrono::nanoseconds duration = std::chrono::nanoseconds::max();
   if (options_.flags.test(ProcessOptions::LIMIT_IDLE_TIME)) {
-    // TODO(iceboy): Limit idle time (/proc/stat).
+    std::ifstream stream("/proc/stat");
+    stream.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+    std::vector<uint32_t> all_idle_ticks;
+    std::string line;
+    while (!stream.eof()) {
+      getline(stream, line);
+      uint32_t idle_ticks;
+      if (sscanf(line.c_str(),
+                 "cpu%*d %*u %*u %*u %" SCNu32, &idle_ticks) != 1) {
+        break;
+      }
+      all_idle_ticks.push_back(idle_ticks);
+    }
+    CHECK(stream.good());
+    CHECK(!all_idle_ticks.empty());
+    uint32_t max_idle_ticks = 0;
+    if (initial_idle_ticks_.empty()) {
+      initial_idle_ticks_ = all_idle_ticks;
+    } else {
+      CHECK_EQ(all_idle_ticks.size(), initial_idle_ticks_.size());
+      for (auto i = 0; i < all_idle_ticks.size(); i++) {
+        max_idle_ticks = std::max(max_idle_ticks,
+                                  all_idle_ticks[i] - initial_idle_ticks_[i]);
+      }
+    }
+    std::chrono::nanoseconds idle_time_elapsed(
+        max_idle_ticks * nanoseconds_per_tick);
+    if (idle_time_elapsed >= options_.idle_time_limit) {
+      CHECK_EQ(kill(pid_, SIGKILL), 0);
+      return;
+    }
+    duration = min(duration, options_.idle_time_limit - idle_time_elapsed);
   }
   if (options_.flags.test(ProcessOptions::LIMIT_CPU_TIME)) {
     std::ifstream stream((boost::format("/proc/%d/stat") % pid_).str());
@@ -43,12 +74,12 @@ void ProcessContext::StartTimer() {
     CHECK(stream.good());
     size_t pos = content.rfind(") ");
     CHECK_NE(pos, std::string::npos);
-    unsigned long user_time, system_time;
+    unsigned long user_time_tick, system_time_tick;
     CHECK_EQ(sscanf(&content[pos + 2],
                     "%*c %*d %*d %*d %*d %*d %*u %*u %*u %*u %*u %lu %lu",
-                    &user_time, &system_time), 2);
+                    &user_time_tick, &system_time_tick), 2);
     std::chrono::nanoseconds cpu_time_elapsed(
-        nanoseconds_per_tick_ * (user_time + system_time));
+        nanoseconds_per_tick * (user_time_tick + system_time_tick));
     if (cpu_time_elapsed >= options_.cpu_time_limit) {
       CHECK_EQ(kill(pid_, SIGKILL), 0);
       return;
