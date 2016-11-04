@@ -4,12 +4,11 @@
 #include <glog/logging.h>
 #include <boost/bind.hpp>
 #include <boost/format.hpp>
+#include <fstream>
 
 namespace {
 
-const std::chrono::nanoseconds kMinWaitDuration = std::chrono::milliseconds(10);
-
-int64_t get_nanoseconds_per_tick() {
+int64_t GetNanosecondsPerTick() {
   long ticks_per_second = sysconf(_SC_CLK_TCK);
   CHECK_GT(ticks_per_second, 0);
   return std::nano::den / (std::nano::num * ticks_per_second);
@@ -25,7 +24,7 @@ ProcessContext::ProcessContext(boost::asio::io_service& io_service,
     : pid_(pid),
       options_(options),
       timer_(io_service),
-      nanoseconds_per_tick_(get_nanoseconds_per_tick()) {
+      nanoseconds_per_tick_(GetNanosecondsPerTick()) {
   if (options_.flags.test(ProcessOptions::LIMIT_IDLE_TIME) ||
       options_.flags.test(ProcessOptions::LIMIT_CPU_TIME)) {
     StartTimer();
@@ -33,30 +32,31 @@ ProcessContext::ProcessContext(boost::asio::io_service& io_service,
 }
 
 void ProcessContext::StartTimer() {
-  std::chrono::nanoseconds wait_duration = std::chrono::nanoseconds::max();
+  std::chrono::nanoseconds duration = std::chrono::nanoseconds::max();
   if (options_.flags.test(ProcessOptions::LIMIT_IDLE_TIME)) {
     // TODO(iceboy): Limit idle time (/proc/stat).
   }
   if (options_.flags.test(ProcessOptions::LIMIT_CPU_TIME)) {
-    FILE* pid_stat_fd = fopen(
-        (boost::format("/proc/%d/stat") % pid_).str().c_str(), "r");
-    CHECK(pid_stat_fd);
+    std::ifstream stream((boost::format("/proc/%d/stat") % pid_).str());
+    std::string content{std::istreambuf_iterator<char>(stream),
+                        std::istreambuf_iterator<char>()};
+    CHECK(stream.good());
+    size_t pos = content.rfind(") ");
+    CHECK_NE(pos, std::string::npos);
     unsigned long user_time, system_time;
-    CHECK_EQ(fscanf(
-        pid_stat_fd,
-        "%*d %*s %*c %*d %*d %*d %*d %*d %*u %*u %*u %*u %*u %lu %lu",
-        &user_time, &system_time), 2);
-    CHECK_EQ(fclose(pid_stat_fd), 0);
+    CHECK_EQ(sscanf(&content[pos + 2],
+                    "%*c %*d %*d %*d %*d %*d %*u %*u %*u %*u %*u %lu %lu",
+                    &user_time, &system_time), 2);
     std::chrono::nanoseconds cpu_time_elapsed(
         nanoseconds_per_tick_ * (user_time + system_time));
     if (cpu_time_elapsed >= options_.cpu_time_limit) {
       CHECK_EQ(kill(pid_, SIGKILL), 0);
       return;
     }
-    wait_duration = min(wait_duration,
-                        options_.cpu_time_limit - cpu_time_elapsed);
+    duration = min(duration, options_.cpu_time_limit - cpu_time_elapsed);
   }
-  timer_.expires_from_now(max(wait_duration, kMinWaitDuration));
+  static const std::chrono::nanoseconds jitter = std::chrono::milliseconds(10);
+  timer_.expires_from_now(duration + jitter);
   timer_.async_wait(boost::bind(&ProcessContext::HandleTimer, this, _1));
 }
 
