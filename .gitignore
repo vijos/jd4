@@ -1,2 +1,3 @@
 /.idea/
-/build/
+/build*/
+/cmake-build*/

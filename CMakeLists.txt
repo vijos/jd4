@@ -1,10 +1,9 @@
-cmake_minimum_required (VERSION 3.0)
+cmake_minimum_required(VERSION 2.8.12)
 
-project (jd4)
+project(jd4)
 
-add_subdirectory (deps/gflags)
-add_subdirectory (deps/glog)
-find_package (Boost COMPONENTS system)
+SET(Boost_USE_STATIC_LIBS ON)
+find_package(Boost COMPONENTS log system)
 
-add_executable (jd4 src/main.cc src/process_runner.cc)
-target_link_libraries (jd4 gflags glog ${Boost_LIBRARIES})
+add_executable(jd4 src/main.cc)
+target_link_libraries(jd4 ${Boost_LIBRARIES} pthread)
