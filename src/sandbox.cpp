@@ -20,13 +20,9 @@ void CreateAndBindDir(const char *olddir, const char *newdir) {
 Sandbox::Sandbox(boost::asio::io_service &io_service,
                  std::string sandbox_root)
     : io_service(io_service),
-      sandbox_root(std::move(sandbox_root)) {}
-
-void Sandbox::Start() {
-    pid_t pid = Fork([this]() { HandleSandboxProcess(); }, io_service);
-    CHECK(pid > 0);
-    // TODO: how to wait/kill all process in the pid namespace?
-    wait(NULL);
+      sandbox_root(std::move(sandbox_root)) {
+    CHECK_UNIX(Fork([this]() { HandleSandboxProcess(); }, io_service));
+    CHECK_UNIX(wait(NULL)); // TODO
 }
 
 void Sandbox::HandleSandboxProcess() {
@@ -37,20 +33,20 @@ void Sandbox::HandleSandboxProcess() {
     // Prepare root directory.
     CHECK_UNIX(mount("tmpfs", sandbox_root.c_str(), "tmpfs", 0, NULL));
     CHECK_UNIX(chdir(sandbox_root.c_str()));
+
     CreateAndBindDir("/bin", "bin");
     CreateAndBindDir("/lib", "lib");
     CreateAndBindDir("/lib64", "lib64");
     CreateAndBindDir("/usr", "usr");
 
-    // Change the root and unmount the old one.
+    // Change the root and detach the old one.
     CHECK_UNIX(mkdir("old-root", 0755));
     CHECK_UNIX(pivot_root(".", "old-root"));
     CHECK_UNIX(umount2("old-root", MNT_DETACH));
     CHECK_UNIX(rmdir("old-root"));
 
-    Fork([this]() { HandleInitProcess(); });
-    // TODO: how to wait/kill all process in the pid namespace?
-    wait(NULL);
+    CHECK_UNIX(Fork([this]() { HandleInitProcess(); }));
+    CHECK_UNIX(wait(NULL));
 }
 
 void Sandbox::HandleInitProcess() {

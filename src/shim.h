@@ -16,17 +16,15 @@ extern "C" int pivot_root(const char *new_root, const char *put_old);
         if (!(condition)) { \
             LOG(fatal) << "check failed: " #condition \
                 " on " __FILE__ ":" _STRINGIZE(__LINE__); \
-            LOG(fatal) << errno; \
             abort(); \
         } \
     } while (0)
 
 #define CHECK_UNIX(ret) \
     do { \
-        if (ret) { \
+        if (ret < 0) { \
             LOG(fatal) << "check failed: " #ret " with errno " << errno \
                        << " on " __FILE__ ":" _STRINGIZE(__LINE__); \
-            LOG(fatal) << errno; \
             abort(); \
         } \
     } while (0)

@@ -8,7 +8,6 @@ class Sandbox {
 public:
     explicit Sandbox(boost::asio::io_service &io_service,
                      std::string sandbox_root);
-    void Start();
 
 private:
     void HandleSandboxProcess();
