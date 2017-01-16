@@ -3,45 +3,57 @@
 #include <linux/sched.h>
 #include <sys/mount.h>
 #include <sys/wait.h>
-#include <boost/format.hpp>
 #include "shim.h"
 #include "util.h"
 
-Sandbox::Sandbox(boost::asio::io_service &io_service)
-    : io_service(io_service)
-{}
+namespace {
 
-void Sandbox::StartInitProcess() {
-    io_service.notify_fork(boost::asio::io_service::fork_prepare);
-    pid_t unshare_pid = fork();
-    if (!unshare_pid) {
-        io_service.notify_fork(boost::asio::io_service::fork_child);
-        real_euid = geteuid();
-        real_egid = getegid();
-        CHECK(unshare(CLONE_NEWNS | CLONE_NEWCGROUP | CLONE_NEWUTS | CLONE_NEWIPC |
-                      CLONE_NEWUSER | CLONE_NEWPID | CLONE_NEWNET) == 0);
-        pid_t init_pid = fork();
-        LOG(info) << init_pid;
-        if (!init_pid) {
-            HandleInitProcess();
-            exit(0);
-        }
-        wait(NULL);
-        exit(0);
-    }
-    CHECK(unshare_pid > 0);
-    io_service.notify_fork(boost::asio::io_service::fork_parent);
+void CreateAndBindDir(const char *olddir, const char *newdir) {
+    CHECK_UNIX(mkdir(newdir, 0755));
+    CHECK_UNIX(mount(olddir, newdir, NULL, MS_BIND, NULL));
+    CHECK_UNIX(
+        mount(olddir, newdir, NULL, MS_BIND | MS_REMOUNT | MS_RDONLY, NULL));
+}
+
+}
+
+Sandbox::Sandbox(boost::asio::io_service &io_service,
+                 std::string sandbox_root)
+    : io_service(io_service),
+      sandbox_root(std::move(sandbox_root)) {}
+
+void Sandbox::Start() {
+    pid_t pid = Fork([this]() { HandleSandboxProcess(); }, io_service);
+    CHECK(pid > 0);
+    // TODO: how to wait/kill all process in the pid namespace?
+    wait(NULL);
+}
+
+void Sandbox::HandleSandboxProcess() {
+    CHECK_UNIX(
+        unshare(CLONE_NEWNS | CLONE_NEWCGROUP | CLONE_NEWUTS | CLONE_NEWIPC |
+                CLONE_NEWUSER | CLONE_NEWPID | CLONE_NEWNET));
+
+    // Prepare root directory.
+    CHECK_UNIX(mount("tmpfs", sandbox_root.c_str(), "tmpfs", 0, NULL));
+    CHECK_UNIX(chdir(sandbox_root.c_str()));
+    CreateAndBindDir("/bin", "bin");
+    CreateAndBindDir("/lib", "lib");
+    CreateAndBindDir("/lib64", "lib64");
+    CreateAndBindDir("/usr", "usr");
+
+    // Change the root and unmount the old one.
+    CHECK_UNIX(mkdir("old-root", 0755));
+    CHECK_UNIX(pivot_root(".", "old-root"));
+    CHECK_UNIX(umount2("old-root", MNT_DETACH));
+    CHECK_UNIX(rmdir("old-root"));
+
+    Fork([this]() { HandleInitProcess(); });
     // TODO: how to wait/kill all process in the pid namespace?
     wait(NULL);
 }
 
 void Sandbox::HandleInitProcess() {
-    CHECK(WriteFile("/proc/self/setgroups", "deny"));
-    CHECK(WriteFile("/proc/self/uid_map", (boost::format("0 %d 1") % real_euid).str()));
-    CHECK(WriteFile("/proc/self/gid_map", (boost::format("0 %d 1") % real_egid).str()));
-
-    CHECK(mount("none", "/", NULL, MS_REC | MS_PRIVATE, NULL) == 0);
-    CHECK(mount("proc", "/proc", "proc", MS_NOSUID | MS_NOEXEC | MS_NODEV, NULL) == 0);
-
-    execl("/bin/bash", "bash", NULL);
+    CHECK(getpid() == 1);
+    execl("/bin/bash", "bash", NULL) == 0;
 }

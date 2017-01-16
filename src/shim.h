@@ -3,9 +3,8 @@
 
 #include <stdlib.h>
 #include <boost/log/trivial.hpp>
-#include <boost/utility/string_ref.hpp>
 
-typedef boost::string_ref StringView;
+extern "C" int pivot_root(const char *new_root, const char *put_old);
 
 #define LOG(severity) BOOST_LOG_TRIVIAL(severity)
 
@@ -15,8 +14,19 @@ typedef boost::string_ref StringView;
 #define CHECK(condition) \
     do { \
         if (!(condition)) { \
-            LOG(fatal) << "check failed: " #condition " on " \
-                __FILE__ ":" _STRINGIZE(__LINE__); \
+            LOG(fatal) << "check failed: " #condition \
+                " on " __FILE__ ":" _STRINGIZE(__LINE__); \
+            LOG(fatal) << errno; \
+            abort(); \
+        } \
+    } while (0)
+
+#define CHECK_UNIX(ret) \
+    do { \
+        if (ret) { \
+            LOG(fatal) << "check failed: " #ret " with errno " << errno \
+                       << " on " __FILE__ ":" _STRINGIZE(__LINE__); \
+            LOG(fatal) << errno; \
             abort(); \
         } \
     } while (0)

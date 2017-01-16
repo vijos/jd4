@@ -2,18 +2,20 @@
 #define JD4_SANDBOX_H
 
 #include <boost/asio.hpp>
+#include <string>
 
 class Sandbox {
 public:
-    explicit Sandbox(boost::asio::io_service &io_service);
-    void StartInitProcess();
+    explicit Sandbox(boost::asio::io_service &io_service,
+                     std::string sandbox_root);
+    void Start();
 
 private:
+    void HandleSandboxProcess();
     void HandleInitProcess();
 
     boost::asio::io_service &io_service;
-    int real_euid;
-    int real_egid;
+    const std::string sandbox_root;
 };
 
 #endif //JD4_SANDBOX_H
