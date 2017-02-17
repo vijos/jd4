@@ -29,7 +29,6 @@ pid_t Fork(EventLoop &loop, Callback callback) {
     return pid;
 }
 
-void Sandbox(const Path& sandbox_root,
-             const Vector<Pair<String, String>> &mount_points);
+void Sandbox(const Path& sandbox_root, const Vector<Pair<Path, Path>> &mount_points);
 
 #endif //JD4_PROCESS_H
