@@ -1,0 +1,62 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE library PUBLIC "-//Boost//DTD BoostBook XML V1.0//EN" "http://www.boost.org/tools/boostbook/dtd/boostbook.dtd">
+<library name="Process" dirname="process" xmlns:xi="http://www.w3.org/2001/XInclude" id="process">
+  <libraryinfo>
+    <orgname>
+      <ulink url="http://www.boost.org/">Boost</ulink>
+    </orgname>
+    <authorgroup>
+      <author>
+        <personname>
+          <firstname>Julio M. Merino</firstname>
+          <surname>Vidal</surname>
+        </personname>
+        <uri type="weblog">http://julipedia.blogspot.com/</uri>
+      </author>
+      <author>
+        <personname>
+          <firstname>Boris</firstname>
+          <surname>Schaeling</surname>
+        </personname>
+        <uri type="website">http://www.highscore.de/</uri>
+        <email>boris@highscore.de</email>
+      </author>
+    </authorgroup>
+    <othercredit>
+      <personname>
+        <firstname>Jeff</firstname>
+        <surname>Garland</surname>
+      </personname>
+      <uri type="webpage">http://www.boost.org/people/jeff_garland.html</uri>
+    </othercredit>
+    <copyright>
+      <year>2006</year>
+      <year>2007</year>
+      <holder>Julio M. Merino Vidal</holder>
+    </copyright>
+    <copyright>
+      <year>2008</year>
+      <year>2009</year>
+      <holder>Boris Schaeling</holder>
+    </copyright>
+    <legalnotice>
+      <para>Use, modification and distribution is subject to the Boost Software License, Version 1.0. (See accompanying file <filename>LICENSE_1_0.txt</filename> or copy at <ulink url="http://www.boost.org/LICENSE_1_0.txt">http://www.boost.org/LICENSE_1_0.txt</ulink>)</para>
+    </legalnotice>
+    <librarypurpose>Create, control and communicate with processes</librarypurpose>
+    <librarycategory name="category:misc"/>
+  </libraryinfo>
+  <title>Boost.Process</title>
+  <section id="process.download">
+    <title>Download</title>
+    <para>Boost.Process is not (yet) an official Boost C++ library. It must be downloaded and installed separately. As Boost.Process is header-only the two directories boost and libs in the zip archive only need to be copied to your Boost directory. As Boost.Process has been tested with Boost 1.36.0 this is the minimum version supported.</para>
+  </section>
+  <xi:include href="introduction.xml"/>
+  <xi:include href="design.xml"/>
+  <xi:include href="concepts.xml"/>
+  <xi:include href="tutorials.xml"/>
+  <xi:include href="nonportable_usage.xml"/>
+  <xi:include href="platforms.xml"/>
+  <xi:include href="portability.xml"/>
+  <xi:include href="position.xml"/>
+  <xi:include href="acknowledgements.xml"/>
+</library>

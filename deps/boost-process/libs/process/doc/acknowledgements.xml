@@ -1,0 +1,8 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE library PUBLIC "-//Boost//DTD BoostBook XML V1.0//EN" "http://www.boost.org/tools/boostbook/dtd/boostbook.dtd">
+<section id="process.acknowledgments">
+  <title>Acknowledgements</title>
+  <para>This library was designed by <ulink url="http://julipedia.blogspot.com/">Julio M. Merino Vidal</ulink> during the <ulink url="http://code.google.com/soc/">Google Summer of Code</ulink> 2006 program under the supervision of <ulink url="http://www.boost.org/people/jeff_garland.html">Jeff Garland</ulink>.</para>
+  <para>The latest snapshot of Boost.Process <ulink url="http://julipedia.blogspot.com/">Julio M. Merino Vidal</ulink> had worked on was checked into the sandbox in 2007.</para>
+  <para>In 2008 the library was picked up by <ulink url="http://www.highscore.de/">Boris Schaeling</ulink> to tidy up the code, fix various bugs, add minor improvements and update the documentation.</para>
+</section>

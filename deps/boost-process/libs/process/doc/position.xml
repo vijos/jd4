@@ -1,0 +1,129 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE library PUBLIC "-//Boost//DTD BoostBook XML V1.0//EN" "http://www.boost.org/tools/boostbook/dtd/boostbook.dtd">
+<section id="process.position" xmlns:xi="http://www.w3.org/2001/XInclude">
+  <title>Project position</title>
+  <section xml:id="process.position.history">
+    <title>History of changes</title>
+    <section>
+      <title>Version 0.3 (September 22nd, 2008)</title>
+      <itemizedlist>
+        <listitem>
+          <para>Dropped the macros <literal>BOOST_PROCESS_POSIX_API</literal> and <literal>BOOST_PROCESS_WIN32_API</literal> as Boost.System defines the macros <literal>BOOST_POSIX_API</literal> and <literal>BOOST_WINDOWS_API</literal> already.</para>
+        </listitem>
+        <listitem>
+          <para>Dropped exception class <type>boost::process::not_found_error</type> which was only thrown by <function alt="boost::process::find_executable_in_path">find_executable_in_path</function> and replaced it with <classname alt="boost::filesystem::filesystem_error">filesystem_error</classname>.</para>
+        </listitem>
+        <listitem>
+          <para>Updated and extended the documentation (e.g. added documentation to functions which were not yet documented).</para>
+        </listitem>
+        <listitem>
+          <para>Fixed various bugs including problems with code calling Unicode- or ANSI-versions of Windows API functions.</para>
+        </listitem>
+        <listitem>
+          <para>On Windows named pipes are used if the macro <literal>BOOST_PROCESS_WINDOWS_USE_NAMED_PIPE</literal> is defined. As only named pipes support asynchronous I/O on Windows this macro must be defined if Boost.Process should be used together with <libraryname alt="Asio">Boost.Asio</libraryname>.</para>
+        </listitem>
+      </itemizedlist>
+    </section>
+    <section>
+      <title>Version 0.2 (incomplete and only in the sandbox)</title>
+      <itemizedlist>
+        <listitem>
+          <para>Relicensed the code under the <ulink url="http://www.boost.org/LICENSE_1_0.txt">Boost Software License 1.0 only</ulink>. The first version was available under both this license and the MIT one only to comply with Summer of Code guidelines.</para>
+        </listitem>
+        <listitem>
+          <para>The POSIX-specific bits of a child's exit status were split from the <classname alt="status">status</classname> class into a new <classname alt="boost::process::posix_status">posix_status</classname> class.</para>
+        </listitem>
+        <listitem>
+          <para>The <classname alt="boost::process::status">status</classname> and <classname alt="boost::process::children">children</classname> constructors were made private to prevent accidental construction by the user.</para>
+        </listitem>
+        <listitem>
+          <para>Fixed duplicate symbols when linking multiple compilation units that use the library.</para>
+        </listitem>
+        <listitem>
+          <para>Fixed build with Visual C++ compilers older than 8.0 that do not provide <function>strcpy_s</function> and similar safe functions.</para>
+        </listitem>
+        <listitem>
+          <para>Removed the <type>command_line</type> class. The user now specifies the executable path and its arguments separately, using any classes he wants (such as a standard string and a STL container). This removes some black-box magic.</para>
+        </listitem>
+        <listitem>
+          <para>Decoupled the launcher classes into context classes and free launch functions. For example, the configuration bits of the old <type>launcher</type> class are now part of <classname alt="boost::process::context">context</classname> while its <code>start</code> method is now implemented as the <function>launch</function> free function. The same goes for the POSIX and Windows launchers. This was done to cleanly separate the action of launching a process from the parameters describing its properties. As a side effect, a lot of useless getters and setters are gone.</para>
+        </listitem>
+        <listitem>
+          <para>The <classname alt="boost::process::environment">environment</classname> class was refactored (much simplified) and made public because it is now exposed to the user through the new <classname alt="boost::process::context">context</classname>.</para>
+        </listitem>
+        <listitem>
+          <para>The file <filename class="headerfile">forward_decls.hpp</filename> was removed. It is not clear it was any useful, and it could be flawed in concept. Will add later on again if there really is a need for it.</para>
+        </listitem>
+        <listitem>
+          <para>The <classname alt="boost::process::stream_behavior">stream_behavior</classname> enumeration was converted to a class so that it can carry more information than a simple type. This is useful to be able to implement more complex stream behaviors. As a side effect, stream merging by the use of booleans or standalone data sets is now superseded by the new <literal>redirect_to_stdout</literal> and <literal>posix_redirect</literal> behaviors.</para>
+        </listitem>
+        <listitem>
+          <para>The <classname alt="boost::process::basic_work_directory_context">basic_work_directory_context</classname> and <classname alt="boost::process::environment_context">environment_context</classname> base classes were added. These are mainly provided to simplify the code in the final Context implementations but may also come handy to the end user in case he is working on his own Context implementation.</para>
+        </listitem>
+        <listitem>
+          <para>The <classname alt="boost::process::status">status</classname> and <classname alt="boost::process::posix_status">posix_status</classname> classes were greatly simplified. Instead of providing lots of accessor functions they now just expose some constant members. This avoids the need for several preconditions and consistency checks because the interface makes incoherent situations impossible.</para>
+        </listitem>
+        <listitem>
+          <para>The <classname alt="boost::process::pipeline">pipeline</classname> and <classname alt="boost::process::children">children</classname> classes were removed. The former was replaced by the <function>launch_pipeline</function> convenience function and the <classname alt="boost::process::pipeline_entry">pipeline_entry</classname> class. The latter was superseded by a simple typedef and a generic <function>wait_children</function> function that can be applied to any kind of collection of Child objects.</para>
+        </listitem>
+        <listitem>
+          <para>Made the processes be identified by a system-wide integer instead of a process-specific handle under Windows.</para>
+        </listitem>
+        <listitem>
+          <para>Added the <classname alt="boost::process::process">process</classname> class, an abstraction on top of <classname alt="boost::process::child">child</classname> that is able to represent any running process within the system. This was a requisite to introduce the <classname alt="boost::process::self">self</classname> class.</para>
+        </listitem>
+        <listitem>
+          <para>Added the <classname alt="boost::process::self">self</classname> class, whose instances allow access to the current process.</para>
+        </listitem>
+        <listitem>
+          <para>Added a way to force the termination of processes.</para>
+        </listitem>
+      </itemizedlist>
+    </section>
+    <section>
+      <title>Version 0.1 (August 21st, 2006)</title>
+      <para>Initial public release. This is what was presented at the end of the program under which Boost.Process was developed: <ulink url="http://code.google.com/soc/">Google Summer of Code</ulink> 2006.</para>
+    </section>
+  </section>
+  <section xml:id="process.position.pending_work">
+    <title>Pending work</title>
+    <para>This section contains a list of pending items in the library that should be addressed before it can be sent for a serious/formal review. Some of these are a simple matter of programming but others will require more consideration to decide the best way to solve them.</para>
+    <itemizedlist>
+      <listitem>
+        <para>Improve integration with <libraryname alt="Asio">Boost.Asio</libraryname> for example to permit asynchronous notification of child process termination.</para>
+      </listitem>
+      <listitem>
+        <para>Make it possible to specify a timeout when waiting for child processes to terminate.</para>
+      </listitem>
+      <listitem>
+        <para>Make <classname alt="boost::process::status">status</classname>' constructor private.</para>
+      </listitem>
+      <listitem>
+        <para>Add an interface to <classname alt="boost::process::self">self</classname> to modify the current environment.</para>
+      </listitem>
+      <listitem>
+        <para>Abstract <classname alt="boost::process::child">child</classname>'s streams so that <classname alt="boost::process::self">self</classname> can also provide a way to access the current process' standard streams.</para>
+      </listitem>
+      <listitem>
+        <para>Add a way (a <type>win32_self</type> class?) that allows the retrieval of a Windows <type>HANDLE</type> for the current process.</para>
+      </listitem>
+      <listitem>
+        <para>The <classname alt="boost::process::process">process</classname> class might conflict with the <code>process</code> namespace. I like the names as they are, but maybe one of the two should be renamed or simply put a warning in the documentation explaining where the conflicts may arise. These happen in some compilers when giving both <code>using namespace boost::process</code> and <code>using namespace boost</code>.</para>
+      </listitem>
+    </itemizedlist>
+  </section>
+  <section xml:id="process.position.documentation">
+    <title>Documentation</title>
+    <itemizedlist>
+      <listitem>
+        <para>Explain why the <type>launcher</type> class was discared in favour of the <classname alt="boost::process::context">context</classname>.</para>
+      </listitem>
+      <listitem>
+        <para>Add some diagrams to illustrate pipelines.</para>
+      </listitem>
+      <listitem>
+        <para>Add some diagrams to illustrate interprocess communication.</para>
+      </listitem>
+    </itemizedlist>
+  </section>
+</section>

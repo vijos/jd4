@@ -1,6 +1,5 @@
 #include "process.h"
 
-#include <linux/sched.h>
 #include <sys/mount.h>
 
 namespace {
@@ -16,13 +15,11 @@ void CreateAndBindDir(const char *olddir, const char *newdir) {
 
 void Sandbox(const Path& sandbox_root,
              const Vector<Pair<String, String>> &mount_points) {
-    CHECK_UNIX(
-        unshare(CLONE_NEWNS | CLONE_NEWCGROUP | CLONE_NEWUTS | CLONE_NEWIPC |
-                CLONE_NEWUSER | CLONE_NEWPID | CLONE_NEWNET));
+    CHECK_UNIX(unshare(CLONE_NEWNS | CLONE_NEWUTS | CLONE_NEWIPC |
+                       CLONE_NEWUSER | CLONE_NEWPID | CLONE_NEWNET));
 
     // Prepare root directory.
     CHECK_UNIX(mount("tmpfs", sandbox_root.c_str(), "tmpfs", 0, NULL));
-
     for (const auto& pair : mount_points) {
         CreateAndBindDir(pair.first.c_str(), (sandbox_root / pair.second).c_str());
     }

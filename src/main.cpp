@@ -1,22 +1,25 @@
 #include <sys/wait.h>
-#include <boost/asio.hpp>
 #include "process.h"
 
 int main(int argc, char *argv[]) {
-    boost::asio::io_service io_service;
-    Fork(io_service, []() {
+    EventLoop loop;
+    CHECK_UNIX(Fork(loop, []() {
         Sandbox("/tmp", {
             {"/bin", "/bin"},
             {"/lib", "/lib"},
             {"/lib64", "/lib64"},
             {"/usr", "/usr"},
         });
-        Fork([]() {
+        CHECK_UNIX(Fork([]() {
             CHECK(getpid() == 1);
-            execl("/bin/bash", "bash", NULL);
-        });
+            ChildContext context;
+            context.input_behavior.emplace(STDIN_FILENO, INHERIT_STREAM);
+            context.output_behavior.emplace(STDOUT_FILENO, INHERIT_STREAM);
+            context.output_behavior.emplace(STDERR_FILENO, INHERIT_STREAM);
+            LaunchChild("/bin/bash", {"bunny"}, context).wait();
+        }));
         wait(NULL);
-    });
+    }));
     wait(NULL);
-    io_service.run();
+    loop.run();
 }

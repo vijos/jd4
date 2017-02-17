@@ -1,0 +1,85 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE library PUBLIC "-//Boost//DTD BoostBook XML V1.0//EN" "http://www.boost.org/tools/boostbook/dtd/boostbook.dtd">
+<section id="process.tutorials" xmlns:xi="http://www.w3.org/2001/XInclude">
+  <title>Tutorials</title>
+  <section id="process.tutorials.start_child">
+    <title>Child.1 - Starting a child</title>
+    <para>The smallest program to start a child consists of specifying the executable name and the arguments, setting up the context and calling a free-standing function to launch the process.</para>
+    <programlisting><xi:include href="../example/start_child.cpp" parse="text"/></programlisting>
+    <para>The header file <filename class="headerfile">boost/process.hpp</filename> can be used to declare easily all classes and functions which are defined by Boost.Process. It simply includes all header files. Instead of including <filename class="headerfile">boost/process.hpp</filename> the program would also compile if the header files <filename class="headerfile">boost/process/context.hpp</filename>, <filename class="headerfile">boost/process/stream_behavior.hpp</filename>, <filename class="headerfile">boost/process/operations.hpp</filename> and <filename class="headerfile">boost/process/child.hpp</filename> would have been included.</para>
+    <para>In order to start a process the executable name and the arguments must be specified and a context must be setup. While the executable name is simply a <code>std::string</code> and arguments are stored in a <code>std::vector&lt;std::string&gt;</code> the context is a class from Boost.Process. It provides three properties <varname>stdin_behavior</varname>, <varname>stdout_behavior</varname> and <varname>stderr_behavior</varname> to specify the behavior of the stdin, stdout and stderr streams. By default all streams are closed. If a child should be able to read from or write to some of these streams they need to be configured. Boost.Process provides a few helper functions - among others <function alt="boost::process::silence_stream">silence_stream</function>. With <function alt="boost::process::silence_stream">silence_stream</function> a stream is not closed but all data written to it is discarded. For the program above it means that bjam can print the version number as the stdout stream is available. However the version number is written to a null device.</para>
+    <para>The free-standing function <function alt="boost::process::launch">launch</function> returns a <classname alt="boost::process::child">child</classname> object. If a parent does not want to communicate with a child nor wait for its termination it can simply forget about it. When the <classname alt="boost::process::child">child</classname> object goes out of scope and is destroyed the parent can not reach the child anymore. However the child may still be running and even might outlive the parent.</para>
+  </section>
+  <section id="process.tutorials.wait_for_child">
+    <title>Child.2 - Waiting for a child to terminate</title>
+    <para>When a child has been started <methodname>wait</methodname> can be called to wait for the child to terminate.</para>
+    <programlisting><xi:include href="../example/wait_for_child.cpp" parse="text"/></programlisting>
+    <para><methodname>wait</methodname> returns a <classname alt="boost::process::status">status</classname> object when the child has terminated. As long as the child is running <methodname>wait</methodname> does not return but blocks.</para>
+    <para>The returned <classname alt="boost::process::status">status</classname> object can be used to check the exit code of the child via <methodname>exit_status</methodname>. Before <methodname>exit_status</methodname> is called though the return value of <methodname>exited</methodname> should be checked to make sure the child exited gracefully. Only if <methodname>exited</methodname> returns <code>true</code> <methodname>exit_status</methodname> may be called.</para>
+  </section>
+  <section id="process.tutorials.read_from_child">
+    <title>Child.3 - Reading from a child with a standard C++ stream</title>
+    <para>Boost.Process can not only be used to start a child and wait for its termination. It also enables a parent to communicate with a child via standard C++ streams.</para>
+    <programlisting><xi:include href="../example/read_from_child.cpp" parse="text"/></programlisting>
+    <para>When a child has been started the stdin, stdout and stderr streams can be fetched by calling <methodname>get_stdin</methodname>, <methodname>get_stdout</methodname> and <methodname>get_stderr</methodname>. As all streams are closed by default it's required to change the behavior of a stream prior to starting a child! If for example the parent wants to read what the child writes to stdout the behavior of the stdout stream must be changed to <function alt="boost::process::capture_stream">capture_stream</function>. Only then the parent can access the stdout stream of the child.</para>
+    <para>While stdout is a stream the child writes data to from the parent's point of view it's an input stream. That's why <methodname>get_stdout</methodname> returns a <classname alt="boost::process::pistream">pistream</classname> object. As <classname alt="boost::process::pistream">pistream</classname> is derived from <code>std::istream</code> it behaves like any other standard C++ stream. The only additional method available in <classname alt="boost::process::pistream">pistream</classname> is <methodname>close</methodname> which can be called to close a stream and notify the child that the parent does not want to read any more data.</para>
+    <para>As <classname alt="boost::process::pistream">pistream</classname> behaves like a standard C++ stream all method calls can block. If the stream buffer is empty and the child doesn't write any data to the stream currently the parent will wait until there is new data written to the stream buffer. If it's not acceptable to block <link linkend="process.tutorials.async_io">asynchronous I/O</link> should be used.</para>
+  </section>
+  <section id="process.tutorials.async_io">
+    <title>Child.4 - Reading from a child using asynchronous I/O</title>
+    <para>While Boost.Process does not support aysynchronous I/O out of the box it provides methods to access the underlying handles of a stream which can be assigned to <libraryname alt="Asio">Boost.Asio</libraryname> objects.</para>
+    <programlisting><xi:include href="../example/async_io.cpp" parse="text"/></programlisting>
+    <para><libraryname alt="Asio">Boost.Asio</libraryname> provides the classes <classname alt="boost::asio::posix::stream_descriptor">stream_descriptor</classname> and <classname alt="boost::asio::windows::stream_handle">stream_handle</classname> to use file descriptors on POSIX platforms and HANDLEs on Windows for asynchronous I/O. By calling <methodname>handle</methodname> an object is returned with owns the underlying handle. In order to access the underlying handle and assign it to a <libraryname alt="Asio">Boost.Asio</libraryname> object <methodname>release</methodname> must be called. Ownership of the underlying handle will be transferred to the caller which means the streams won't be closed when the <classname alt="boost::process::child">child</classname> object goes out of scope.</para>
+    <para>Please note that the macro BOOST_PROCESS_WINDOWS_USE_NAMED_PIPE must be defined for asynchronous I/O to work on Windows platforms. By default streams use anonymous pipes which don't support asynchronous I/O on Windows though. By defining BOOST_PROCESS_WINDOWS_USE_NAMED_PIPE named pipes are used on Windows which support asynchronous I/O.</para>
+    <para>Once the underlying handles have been assigned to <libraryname alt="Asio">Boost.Asio</libraryname> objects asynchronous I/O works like usual. To make sure that the parent waits for the child to write data and does not terminate <methodname>wait</methodname> is called.</para>
+  </section>
+  <section id="process.tutorials.env_empty">
+    <title>Environment.1 - Starting a child with an empty environment</title>
+    <para>When a context is setup the environment table which contains environment variables for the new process can be configured. By default the environment table is empty.</para>
+    <programlisting><xi:include href="../example/empty_environment.cpp" parse="text"/></programlisting>
+    <para>The child started simply writes the environment variables to the stdout stream. As different commands have to be used on POSIX and Windows platforms the macros BOOST_POSIX_API and BOOST_WINDOWS_API are used. They are automatically available when <filename class="headerfile">boost/process.hpp</filename> is included.</para>
+    <para>On POSIX platforms the program <command>env</command> is used to print environment variables. On Windows a built-in shell command has to be used. As the built-in shell command is not a stand-alone executable the free-standing function <function alt="boost::process::launch_shell">launch_shell</function> must be called. This function starts the shell (cmd.exe on Windows) and passes the command as an argument to the shell.</para>
+    <para>When the program is run which reads the data written to stdout by the child no data is received: By default the environment table is empty.</para>
+  </section>
+  <section id="process.tutorials.env_current">
+    <title>Environment.2 - Starting a child with the current environment</title>
+    <para>If a child should see the same environment variables as the parent process the context has to be setup accordingly.</para>
+    <programlisting><xi:include href="../example/current_environment.cpp" parse="text"/></programlisting>
+    <para>By calling <function alt="boost::process::current_environment">current_environment</function> the current environment can be copied to the property <varname>environment</varname> of a context. When the program is run the very same environment variables as seen by the parent are printed.</para>
+  </section>
+  <section id="process.tutorials.env_modified">
+    <title>Environment.3 - Starting a child with a modified environment</title>
+    <para>If a child should not see some environment variables or needs other environment variables to be defined the environment table can be modified.</para>
+    <programlisting><xi:include href="../example/modified_environment.cpp" parse="text"/></programlisting>
+    <para>The property <varname>environment</varname> of the context is a typedef for <code>std::map&lt;std::string, std::string&gt;</code>. Thus it's easy to modify the environment table and remove or insert environment variables.</para>
+  </section>
+  <section id="process.tutorials.posix_status">
+    <title>POSIX child.1 - Accessing status codes of a terminated child</title>
+    <para>While <classname alt="boost::process::status">status</classname> is typically used to check the exit status of a terminated child on POSIX platforms the class <classname alt="boost::process::posix_status">posix_status</classname> provides more methods to find out why and how a child terminated.</para>
+    <programlisting><xi:include href="../example/posix_status.cpp" parse="text"/></programlisting>
+    <para>The methods <methodname alt="boost::process::signaled">signaled</methodname> and <methodname alt="boost::process::stopped">stopped</methodname> can be called to check if the process exited due to an external signal or was stopped by an external signal. If they return <literal>true</literal> additional methods can be called to get the signal code.</para>
+  </section>
+  <section id="process.tutorials.posix_communication">
+    <title>POSIX child.2 - Using more than three communication streams</title>
+    <para>On POSIX platforms it's possible to setup more communication streams than stdin, stdout and stderr.</para>
+    <programlisting><xi:include href="../example/posix_communication.cpp" parse="text"/></programlisting>
+    <para>The class <classname alt="boost::process::posix_context">posix_context</classname> provides the properties <varname>input_behavior</varname> and <varname>output_behavior</varname> to add and configure more streams than stdin, stdout and stderr. When started those streams can be accessed by calling <methodname>get_intput</methodname> and <methodname>get_output</methodname> on <classname alt="boost::process::posix_child">posix_child</classname>.</para>
+  </section>
+  <section id="process.tutorials.win32_startup">
+    <title>Windows child.1 - Setting up a context with startup information</title>
+    <para>With <classname alt="boost::process::win32_context">win32_context</classname> it's possible to add a <ulink url="http://msdn.microsoft.com/en-us/library/ms686331(VS.85).aspx">STARTUPINFO</ulink> structure which will be used by <function alt="boost::process::win32_launch">win32_launch</function> to start a Windows process.</para>
+    <programlisting><xi:include href="../example/win32_startup.cpp" parse="text"/></programlisting>
+    <para>The <ulink url="http://msdn.microsoft.com/en-us/library/ms686331(VS.85).aspx">STARTUPINFO</ulink> structure enables developers to specify for example location and size of the main window of the new process.</para>
+  </section>
+  <section id="process.tutorials.win32_child">
+    <title>Windows child.2 - Accessing process and thread identifiers and handles</title>
+    <para>If it's required to access process and thread identifiers and handles on Windows platforms a child should be started with <function alt="boost::process::win32_launch">win32_launch</function>.</para>
+    <programlisting><xi:include href="../example/win32_child.cpp" parse="text"/></programlisting>
+    <para>The function <function alt="boost::process::win32_launch">win32_launch</function> returns a <classname alt="boost::process::win32_child">win32_child</classname> object which provides additional methods to access identifiers and handles of the child's process and primary thread.</para>
+  </section>
+  <section id="process.tutorials.pipeline">
+    <title>Pipeline.1 - Creating children and connecting their streams</title>
+    <para>The library supports creating a so-called pipeline: Children are spawned in a way that an output stream is connected to the input stream of the next child.</para>
+    <programlisting><xi:include href="../example/pipeline.cpp" parse="text"/></programlisting>
+  </section>
+</section>

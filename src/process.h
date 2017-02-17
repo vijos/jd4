@@ -17,14 +17,14 @@ pid_t Fork(Callback callback) {
 }
 
 template<typename Callback>
-pid_t Fork(boost::asio::io_service &io_service, Callback callback) {
-    io_service.notify_fork(boost::asio::io_service::fork_prepare);
-    pid_t pid = Fork([&io_service, callback = std::move(callback)]() {
-        io_service.notify_fork(boost::asio::io_service::fork_child);
+pid_t Fork(EventLoop &loop, Callback callback) {
+    loop.notify_fork(EventLoop::fork_prepare);
+    pid_t pid = Fork([&loop, callback = std::move(callback)]() {
+        loop.notify_fork(EventLoop::fork_child);
         callback();
     });
     if (pid > 0) {
-        io_service.notify_fork(boost::asio::io_service::fork_parent);
+        loop.notify_fork(EventLoop::fork_parent);
     }
     return pid;
 }

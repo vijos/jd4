@@ -1,0 +1,107 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE library PUBLIC "-//Boost//DTD BoostBook XML V1.0//EN" "http://www.boost.org/tools/boostbook/dtd/boostbook.dtd">
+<section id="process.platforms" xmlns:xi="http://www.w3.org/2001/XInclude">
+  <title>Platforms and compilers</title>
+  <para>This chapter describes the operating systems and compilers supported by Boost.Process. It also includes some guidelines on how to port the code to a new platform or a different Boost.Build toolset.</para>
+  <section xml:id="process.platforms.supported_platforms">
+    <title>Supported platforms</title>
+    <para>Boost.Process supports several different operating systems. Based on their programming API and process management models, they can be classified in two major platforms:</para>
+    <variablelist>
+      <varlistentry>
+        <term>POSIX systems</term>
+        <listitem>
+          <para>These systems follow the POSIX process model and use standard APIs to manage child processes. Simply put all processes are organized based on a parent/child relationship and applications start new processes by using the <function>fork</function> and <function>execve</function> pair of system calls. This separation allows the child process to perform extra operations before executing the real target. Systems in this group include all Unix-like operating systems.</para>
+        </listitem>
+      </varlistentry>
+      <varlistentry>
+        <term>Windows systems</term>
+        <listitem>
+          <para>Even though these systems support some of the POSIX system calls in the standard C Runtime library (CRT), they have a completely different process management model. Processes are spawned using a single system call known as <function>CreateProcess</function> which receives all the configuration parameters for the new child.</para>
+        </listitem>
+      </varlistentry>
+    </variablelist>
+    <para>Knowing how to classify the supported operating systems, the following table lists all operating systems known to support Boost.Process (according to the test suite):</para>
+    <table>
+      <caption>Supported operating systems</caption>
+      <thead>
+        <tr>
+          <td>Operating system name</td>
+          <td>API type</td>
+          <td>API constant</td>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Linux 2.6</td>
+          <td>POSIX</td>
+          <td>BOOST_POSIX_API</td>
+        </tr>
+        <tr>
+          <td><ulink url="http://www.apple.com/macosx/">Mac OS X 10.4.x</ulink></td>
+          <td>POSIX</td>
+          <td>BOOST_POSIX_API</td>
+        </tr>
+        <tr>
+          <td><ulink url="http://www.netbsd.org/">NetBSD 3.x and 4.x</ulink></td>
+          <td>POSIX</td>
+          <td>BOOST_POSIX_API</td>
+        </tr>
+        <tr>
+          <td><ulink url="http://www.microsoft.com/windows/">Windows XP</ulink></td>
+          <td>Win32</td>
+          <td>BOOST_WINDOWS_API</td>
+        </tr>
+      </tbody>
+    </table>
+    <para>The third column in the table above mentions the name of a preprocessor constant defined by the header filer <filename class="headerfile">boost/process/config.hpp</filename> based on the platform type. Code using the library can use that constant to determine the platform it is running under.</para>
+    <para>Please note that the list above is not exhaustive. It is highly possible that Boost.Process works fine under other, unlisted operating systems because many of them are just variations of the above. Shall you try and use Boost.Process successfully on any other platform, please <link linkend="process.acknowledgments">tell us</link> so that it can be added to the list.</para>
+  </section>
+  <section xml:id="process.platforms.supported_compilers">
+    <title>Supported compilers</title>
+    <para>The Boost.Build compilation system abstracts compilers in what are known as toolsets. A toolset interacts with a specific compiler and linker to build the library and associated utilities (test suite, documentation and examples) in a platform-independent way, freeing the application developer from knowing the specific build details of the underlying platform.</para>
+    <para>Toolsets are specific to the operating systems they run under; e.g. the msvc toolset (Microsoft Visual C++) is not available under a GNU/Linux system. Therefore they should not be considered on their own but, for simplicity reasons, the table below lists the supported toolsets only.</para>
+    <table>
+      <caption>Supported toolsets</caption>
+      <thead>
+        <tr>
+          <td>Toolset name</td>
+          <td>Specific versions</td>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>darwin</td>
+          <td>GCC 3.3 and 4.0 as shipped with XCode 2.3</td>
+        </tr>
+        <tr>
+          <td>gcc</td>
+          <td>GCC 3.x and 4.x</td>
+        </tr>
+        <tr>
+          <td>msvc</td>
+          <td>Microsoft Visual Studio 2005/2008</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+  <section xml:id="process.platforms.how_to_port">
+    <title>How to port to a new platform or compiler</title>
+    <para>A very important design goal of Boost.Process was to achieve maximum portability. It is certainly possible to adapt the library to new operating systems and compilers, generally with minimum efforts. However, porting to a new platform might be an extremely complex task, specially if its process management model differs from that of POSIX and Windows platforms.</para>
+    <para>Let's start with the easy task: porting to a new compiler. The library itself does not use any compiler-specific construction in its code so it should not cause problems. However, old compilers can raise errors if they do not support some of the ANSI C++ features. If this happens, the problem should be worked around in the simplest possible way.</para>
+    <para>A different issue is the test suite. The test suite builds a helper binary utility used by many other tests. These tests need to know where the helper binary is located and to do so they use some conditionals based on the toolset name. (Ideally Boost.Build could provide the real path to the code, but this feature is not available.) As you can imagine, this will surely cause problems when adopting a new toolset because it will not be recognized by the path determination machinery. In order to fix this you must adapt the <function>get_helpers_path</function> function in <filename class="headerfile">libs/process/test/misc.hpp</filename> to recognize the helper's binary location when built with the new toolset.</para>
+    <para>In order to port the library to a new operating system, you must first check that <filename class="headerfile">boost/process/config.hpp</filename> is determining the appropriate platform type for it. Once this is done, it should be a matter of running the test suite, detecting any build problems that may arise and fixing them appropriately. Remember that if the new operating system conforms to one of the supported platforms, it should behave similarly and not require big changes to the code.</para>
+    <para>In a different order of magnitude is the task to port the library to a new platform. The first step is to add a new platform constant to <filename class="headerfile">boost/process/config.hpp</filename> to identify the new platform. Once this is done, you will need to modify lots of source files to add support for it, including those in the library code, in the examples and in the test suite. Files that depend on a platform typically have the following conditional at the very beginning:</para>
+    <programlisting>#include &lt;boost/process/config.hpp&gt;
+
+#if defined(BOOST_POSIX_API)
+// Inclusion of POSIX-specific headers.
+#elif defined(BOOST_WINDOWS_API)
+// Inclusion of Windows-specific headers.
+#else
+#  error "Unsupported platform."
+#endif
+
+// Inclusion of portable headers.</programlisting>
+    <para>It is important to note that only the first conditional in a given file carries the preprocessor error to ensure that the file is not compilable on an unsupported platform. Similarly the conditionals list all known platforms explicitly to denote that they were taken into account when writing or porting the code.</para>
+  </section>
+</section>

@@ -1,0 +1,51 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE library PUBLIC "-//Boost//DTD BoostBook XML V1.0//EN" "http://www.boost.org/tools/boostbook/dtd/boostbook.dtd">
+<section id="process.concepts" xmlns:xi="http://www.w3.org/2001/XInclude">
+  <title>Concepts</title>
+  <para>The following sections describe the basic concepts behind Boost.Process. They are first slightly introduced based on the operating system concepts behind them and are later specified as concepts to be used in templates.</para>
+  <section id="process.concepts.executable">
+    <title>Executable</title>
+    <para>An executable is a file which can be executed by the operating system. The file can contain machine code or be a script which is automatically executed by a script host.</para>
+    <para>The Executable concept is used to refer to an executable. It is a filename which can include a path (either absolute or relative). If the filename doesn't include a path the executable is expected to be in the current working directory (relative to the <link linkend="process.concepts.context">Context</link> which is another concept explained below).</para>
+    <para>There is no class in Boost.Process to implement the Executable concept. As the executable is a filename only it is simply stored in a <classname>std::string</classname>. It might be possible to generalize the library further to make it possible for library users to use other string classes. Currently it is the safest bet to use a <classname>std::string</classname> though.</para>
+  </section>
+  <section xml:id="process.concepts.arguments">
+    <title>Arguments</title>
+    <para>Arguments are the parameters passed to an executable when invoked. In C++ they can be accessed via a <type>char*[]</type> parameter of <function>main</function> which is often called <varname>argv</varname>.</para>
+    <para>This concept is not represented by a class either. The library user is expected to use a collection whose items are strings, eg. <type>std::vector&lt;std::string&gt;</type>. While the library user is free to choose any collection from the STL the items' type must be <type>std::string</type>. The library is not as much generalized yet as if it is likely to work with other string types.</para>
+  </section>
+  <section xml:id="process.concepts.context">
+    <title>Context</title>
+    <para>A context defines additional data next to the executable and arguments a child process should be spawned with. This includes for example the work directory and environment variables. There are also platform-specific features supported. On POSIX systems security credentials can be set for example.</para>
+    <para>A generic context is implemented as <classname alt="boost::process::context">context</classname>. There are two platform-specific context classes <classname alt="boost::process::posix_context">posix_context</classname> and <classname alt="boost::process::win32_context">win32_context</classname> to provide access to platform-specific features.</para>
+  </section>
+  <section xml:id="process.concepts.process">
+    <title>Process</title>
+    <para>A process is the execution context of a program, represented internally by the operating system through multiple objects in its internal tables. Any reference to a process always mentions a running application in the system; it has to be clear that it cannot refer to an on-disk program that has not yet started execution.</para>
+    <para>Processes are internally organized by the operating system as a tree. Each process (except for the one at the tree's root) has a parent and can have multiple children. A parent process owns its children and therefore has full control over their execution.</para>
+    <para>There are two possible states for a child process:</para>
+    <itemizedlist>
+      <listitem>
+        <para>Active: the process is alive. It may either be running or sleeping, but it has not finalized execution.</para>
+      </listitem>
+      <listitem>
+        <para>Zombie: the process finished execution and is waiting for its parent to collect its status. This may happen due to unexpected and expected termination conditions.</para>
+      </listitem>
+    </itemizedlist>
+    <para>While there is a <classname alt="boost::process::process">process</classname> class library users typically deal with objects of type <classname alt="boost::process::child">child</classname> (a class derived from <classname alt="boost::process::process">process</classname>). If platform-specific features should be used child objects of type <classname alt="boost::process::posix_child">posix_child</classname> and <classname alt="boost::process::win32_child">win32_child</classname> can be created.</para>
+    <para>The class <classname alt="boost::process::self">self</classname> (which is also derived from <classname alt="boost::process::process">process</classname>) can be used to access the current process.</para>
+  </section>
+  <section xml:id="process.concepts.status">
+    <title>Exit status</title>
+    <para>Upon termination, a process reports information to its parent describing why it finalized. This information is known as the exit status and includes the reason behind termination (regular exit, crash, external signal, etc.) together with details describing it.</para>
+    <para>Exit status can only be gathered from zombie processes; that is, child processes that stopped execution and are waiting for its parent to collect it. When the information is collected, the zombie process ceases to exist from the system tables, invalidating the Process object that represented it.</para>
+    <para>The Status concept is used to represent a process' exit status.</para>
+    <para>This concept is implemented by the <classname alt="boost::process::status">status</classname> class. On POSIX systems additional features are available via the <classname alt="boost::process::posix_status">posix_status</classname> class.</para>
+  </section>
+  <section xml:id="process.concepts.handle">
+    <title>Handle</title>
+    <para>A handle is an operating system entity that identifies one of its objects, such as a file or a process. Handles are used by user space programs to tell the operating system the object they are referring to.</para>
+    <para>Given the low-level interactions of Boost.Process with the operating system, the library lets the user access these handles, should he need them to call operating system services directly.</para>
+    <para>It is important to note that handles are object-specific. An operating system may use different data types to identify each of its objects. For example, POSIX systems refer to files through an <type>int</type> value while processes are referred to by <type>pid_t</type> values. Contrarywise, Windows uses a single <type>HANDLE</type> type to describe any object.  Therefore, Boost.Process abstracts these handles in each class where it makes sense using types named <type>handle_type</type>.</para>
+  </section>
+</section>

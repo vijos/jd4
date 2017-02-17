@@ -1,0 +1,137 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE library PUBLIC "-//Boost//DTD BoostBook XML V1.0//EN" "http://www.boost.org/tools/boostbook/dtd/boostbook.dtd">
+<section id="process.portability" xmlns:xi="http://www.w3.org/2001/XInclude">
+  <title>Portability remarks</title>
+  <para>The <link linkend="process.usage">usage chapter</link> has discussed all the portable features provided by Boost.Process and the <link linkend="process.nonportable_usage">platform-specific features chapter</link> has detailed all those that are restricted to concrete platforms. Unfortunately, there are several details you have to take into account if you want to write programs that are really portable even if you only use the features described by the former chapter.</para>
+  <section xml:id="process.portability.generic_classes">
+    <title>Generic classes</title>
+    <para>The most basic and obvious rule to develop a portable program is to stay away from all platform-specific classes. These are all prefixed with the platform's name to avoid using them by mistake. Shall you need to use them, you can still protect their usage with one of the <link linkend="process.platforms.supported_platforms">platform constants</link> and provide an appropriate fall-back alternative when they are not available.</para>
+    <para>As an example consider an application that wants to control a process' main window position. Under Windows platforms this is achieved by tweaking the <link linkend="process.nonportable_usage">startup information</link>, something that is supported only through a platform-specific class. However, this same thing is typically achieved under Unix by passing the program a <literal>-geometry</literal> flag:</para>
+    <programlisting>std::string exec = "some-application"; 
+
+std::vector&lt;std::string&gt; args; 
+
+#if defined(BOOST_POSIX_API) 
+args.push_back("-geometry"); 
+args.push_back("+100+200"); 
+... 
+boost::process::context ctx; 
+... 
+boost::process::launch(exec, args, ctx); 
+#elif defined(BOOST_WINDOWS_API) 
+STARTUPINFO si; 
+... 
+si.dwX = 100; 
+si.dwY = 200; 
+... 
+boost::process::win32_context ctx; 
+ctx.startupinfo = &amp;si; 
+... 
+boost::process::win32_launch(exec, args, ctx); 
+#else 
+#  error "Unsupported platform." 
+#endif </programlisting> 
+  </section>
+  <section xml:id="process.portability.shell_command">
+    <title>Shell commands</title>
+    <para>The free-standing function <function alt="boost::process::launch_shell">launch_shell</function> allows the user to invoke a command which is passed verbatim to the shell. This is a delicate procedure because the Windows shell (<command>cmd.exe</command>) has very different rules than the standard POSIX shell (<command>/bin/sh</command>).</para>
+    <para>You should be aware of the following issues:</para>
+    <variablelist>
+      <varlistentry>
+        <term>Quoting issues</term>
+        <listitem>
+          <para>Each shell has its own quoting patterns when it comes to special characters. It is your responsibility to properly quote the string passed to <function alt="boost::process::launch_shell">launch_shell</function> so that there are no side effects. Special care must be taken if you are feeding the shell a user-supplied string.</para>
+        </listitem>
+      </varlistentry>
+      <varlistentry>
+        <term>Wildcard expansion</term>
+        <listitem>
+          <para>POSIX shells expand wildcards while the Windows shell does not. In the latter, the expansion is done by the application itself.</para>
+        </listitem>
+      </varlistentry>
+      <varlistentry>
+        <term>Variable expansion</term>
+        <listitem>
+          <para>Each shell has its own syntax to expand variables. E.g. Windows uses a %VAR% syntax while the POSIX shell uses ${VAR} or one of its multiple variations.</para>
+        </listitem>
+      </varlistentry>
+      <varlistentry>
+        <term>Built-in commands</term>
+        <listitem>
+          <para>Some commands are built-ins under some platforms while they are regular binaries under others. For example, POSIX's <command>ls</command> is a binary utility that resides under <filename class="directory">/bin</filename> whereas Windows' <command>dir</command> is a <command>cmd.exe</command> built-in. In the latter case the shell is required to execute the command.</para>
+        </listitem>
+      </varlistentry>
+    </variablelist>
+  </section>
+  <section xml:id="process.portability.environment">
+    <title>The environment</title>
+    <para>Environment variables are a common concept across all supported platforms and they behave very similarly. However there are some subtle differences that might cause problems:</para>
+    <variablelist>
+      <varlistentry>
+        <term>Empty variable values</term>
+        <listitem>
+          <para>Under a POSIX system, a variable can be defined and undefined regardless of its value. That is, it is perfectly legal to define a variable whose value is the empty string; in that case the application will see the variable as defined. Under Windows, however, there is no way to differentiate an empty variable from an undefined variable. To all effects, setting a variable to an empty string is the same as removing it.</para>
+        </listitem>
+      </varlistentry>
+      <varlistentry>
+        <term>Empty variable names</term>
+        <listitem>
+          <para>Neither Windows systems nor POSIX systems support an empty-named variable.</para>
+        </listitem>
+      </varlistentry>
+      <varlistentry>
+        <term>Variable length</term>
+        <listitem>
+          <para>Each operating system (even under the same platform) has a limit on the variable name's and value's length.</para>
+        </listitem>
+      </varlistentry>
+    </variablelist>
+  </section>
+  <section xml:id="process.portability.status">
+    <title>Exit status</title>
+    <para>The class <classname alt="boost::process::status">status</classname> provides a very generic interface to represent a process' exit condition. Among its members are a bunch that return booleans indicating whether an exit condition is true. The other methods are restricted to be used when their corresponding boolean exit condition holds <literal>true</literal>.</para>
+    <para>This generic interface is modelled after the POSIX exit status. Windows is much more restricted in this regard and only supports a subset of these features. There is no problem in calling the class' methods as long as the preconditions are met, but some of them make no sense under Windows. The following table describes the special cases:</para>
+    <table>
+      <caption>Platform dependency of <classname alt="boost::process::status">status</classname></caption>
+      <thead>
+        <tr>
+          <td>Method</td>
+          <td>Platform</td>
+          <td>Returns</td>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><methodname alt="boost::process::status::exited">exited</methodname></td>
+          <td>POSIX</td>
+          <td>Whether the process exited on its own or not.</td>
+        </tr>
+        <tr>
+          <td><methodname alt="boost::process::status::exited">exited</methodname></td>
+          <td>Windows</td>
+          <td>Always <literal>true</literal>.</td>
+        </tr>
+        <tr>
+          <td><methodname alt="boost::process::status::signaled">signaled</methodname></td>
+          <td>POSIX</td>
+          <td>Whether the process exited due to an external signal or not.</td>
+        </tr>
+        <tr>
+          <td><methodname alt="boost::process::status::signaled">signaled</methodname></td>
+          <td>Windows</td>
+          <td>Always <literal>false</literal>.</td>
+        </tr>
+        <tr>
+          <td><methodname alt="boost::process::status::stopped">stopped</methodname></td>
+          <td>POSIX</td>
+          <td>Whether the process was stopped by an external signal.</td>
+        </tr>
+        <tr>
+          <td><methodname alt="boost::process::status::stopped">stopped</methodname></td>
+          <td>Windows</td>
+          <td>Always <literal>false</literal>.</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+</section>

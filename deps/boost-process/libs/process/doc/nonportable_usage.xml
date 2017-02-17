@@ -1,0 +1,163 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE library PUBLIC "-//Boost//DTD BoostBook XML V1.0//EN" "http://www.boost.org/tools/boostbook/dtd/boostbook.dtd">
+<section id="process.nonportable_usage" xmlns:xi="http://www.w3.org/2001/XInclude">
+  <title>Platform-specific usage</title>
+  <para>The <link linkend="process.usage">usage chapter</link> focused on explaining all features provided by Boost.Process that are available under all <link linkend="process.platforms.supported_platforms">supported platforms</link>. However, those features may be too limited when portability across different platforms is not a determining factor; in such cases, you will want to access the full power of the underlying operating system to manage processes. Boost.Process lets you do so through specialized classes - even if they are not enough for your use case, you can always design your own.</para>
+  <para>This chapter describes all platform-specific features available in Boost.Process. Keep in mind that using them will lower your application's portability.</para>
+  <section xml:id="process.nonportable_usage.posix">
+    <title>The POSIX platform</title>
+    <section>
+      <title>Interprocess communication</title>
+      <para>As we saw <link linkend="process.usage">earlier</link> in the usage chapter, all platforms supported by Boost.Process provide three communication channels to each process. Although these are enough in almost all use cases, some applications can take advantage of more data flows. For example, they may support multiple input streams so that external processes can feed in different types of data, or emit messages through more than two output streams to clearly separate their purpose.</para>
+      <para>The POSIX platform allows the configuration of more than three communication channels thanks to the way <function>fork</function> works: any file descriptor can be used to connect two different processes through an anonymous pipe. Boost.Process can take advantage of such feature and configure more than three data flows by using the specialized <classname alt="boost::process::posix_launcher">posix_launcher</classname> and <classname alt="boost::process::posix_child">posix_child</classname> classes, both based on the generic implementations.</para>
+      <para>Before continuing, it is interesting to remember that POSIX systems identify communication channels with plain integers because they are regular file descriptors. The three standard communication channels are typically attached to fixed file descriptors and the <filename class="headerfile">cstdlib</filename> standard header provides constants to refer to them; these constants shall be used instead of the integer values to achieve maximum portability and clarity.</para>
+      <table>
+        <caption>Standard channels on POSIX operating systems</caption>
+        <thead>
+          <tr>
+            <td>Channel</td>
+            <td>Symbolic constant</td>
+            <td>Typical value</td>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Standard input</td>
+            <td>STDIN_FILENO</td>
+            <td>0</td>
+          </tr>
+          <tr>
+            <td>Standard output</td>
+            <td>STDOUT_FILENO</td>
+            <td>1</td>
+          </tr>
+          <tr>
+            <td>Standard error</td>
+            <td>STDERR_FILENO</td>
+            <td>2</td>
+          </tr>
+        </tbody>
+      </table>
+      <para>The POSIX context class <classname alt="boost::process::posix_context">posix_context</classname> provides two additional properties that allow the user to add and specify the behavior of non-standard file descriptors; these are <varname>input_behavior</varname> and <varname>output_behavior</varname>. The former is used to configure a child's input streams and the latter output ones.</para>
+      <para>Once the streams are configured and the child process is running, the caller accesses the child's streams as it did with the generic child. However, non-standard streams are only available through two additional methods: <methodname alt="boost::process::posix_child::get_input">get_input</methodname> and <methodname alt="boost::process::posix_child::get_output">get_output</methodname>.</para>
+      <para>These methods can be seen as general cases of those provided by the generic child. The following table illustrates the equivalences:</para>
+      <table>
+        <caption>POSIX child specific methods and equivalent portable methods</caption>
+        <thead>
+          <tr>
+            <td>Portable method</td>
+            <td>Equivalent to</td>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>boost::process::child::get_stdin()</code></td>
+            <td><code>boost::process::posix_child::get_input(STDIN_FILENO)</code></td>
+          </tr>
+          <tr>
+            <td><code>boost::process::child::get_stdout()</code></td>
+            <td><code>boost::process::posix_child::get_output(STDOUT_FILENO)</code></td>
+          </tr>
+          <tr>
+            <td><code>boost::process::child::get_stderr()</code></td>
+            <td><code>boost::process::posix_child::get_output(STDERR_FILENO)</code></td>
+          </tr>
+        </tbody>
+      </table>
+      <para>The following example program illustrates the use of these functions. It uses the D-BUS daemon application because it allows to print useful information to two non-standard streams (3 and 4 in the code below). The example utility captures these messages and provides them to the user:</para>
+      <programlisting><xi:include href="../example/posix_communication.cpp" parse="text"/></programlisting>
+    </section>
+    <section>
+      <title>Process credentials</title>
+      <para>Processes under POSIX operating systems carry several properties that describe their security credentials. All of these can be configured through the POSIX context prior startup of a new process, as seen in the following table:</para>
+      <table>
+        <caption>How to retrieve process credentials on POSIX operating systems</caption>
+        <thead>
+          <tr>
+            <td>Concept</td>
+            <td>Abbreviation</td>
+            <td>POSIX launcher method</td>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Real and effective user IDs</td>
+            <td>UID</td>
+            <td><methodname alt="boost::process::posix_launcher::set_uid">set_uid</methodname></td>
+          </tr>
+          <tr>
+            <td>Effective user ID</td>
+            <td>EUID</td>
+            <td><methodname alt="boost::process::posix_launcher::set_euid">set_euid</methodname></td>
+          </tr>
+          <tr>
+            <td>Real and effective group IDs</td>
+            <td>GID</td>
+            <td><methodname alt="boost::process::posix_launcher::set_gid">set_gid</methodname></td>
+          </tr>
+          <tr>
+            <td>Effective group ID</td>
+            <td>EGID</td>
+            <td><methodname alt="boost::process::posix_launcher::set_egid">set_egid</methodname></td>
+          </tr>
+        </tbody>
+      </table>
+      <para>Note that changing the security credentials of a process is a privileged operation generally restricted to the super user. For more information you should see your operating system's documentation on the <function>setuid</function>, <function>seteuid</function>, <function>setgid</function> and <function>setegid</function> system calls.</para>
+    </section>
+    <section>
+      <title>Root directory change</title>
+      <para>Every process in a POSIX system has a root directory, used to resolve paths aside from the current working directory. This root directory is used to restrict processes to view only a part of the global file system: the process is not allowed to see the real file system's root directory; instead it sees the specified root directory as if it really was the file system's root. See the <function>chroot</function> system call documentation for more details.</para>
+      <para>The specialized <classname alt="boost::process::posix_context">posix_context</classname> supports changing the root directory of a new process, always assuming that sufficient privileges are available (i.e. the caller must be the super user). This is done through the <varname alt="boost::process::posix_context::chroot">chroot</varname> property.</para>
+    </section>
+    <section>
+      <title>Process termination</title>
+      <para>The POSIX's <function>wait</function> family of system calls returns a lot of information about the status of a finalized process, not only the exit status code provided on a normal exit. This information includes additional termination reasons such as if the process dumped a core file, if it exited due an external signal, etc.</para>
+      <para>The information described above can be queried through the <classname alt="boost::process::posix_status">posix_status</classname> class. This is built on top of the regular status class and includes additional methods to query all additional details. It can be used anywhere a <classname alt="boost::process::status">status</classname> object is created thanks to its conversion constructor.</para>
+      <programlisting><xi:include href="../example/posix_status.cpp" parse="text"/></programlisting>
+    </section>
+  </section>
+  <section xml:id="process.nonportable_usage.windows">
+    <title>The Windows platforms</title>
+    <section>
+      <title>Startup information</title>
+      <para>The Windows <function>CreateProcess</function> system call receives a <type>STARTUPINFO</type> object that contains multiple details on how to configure the new process. Among these are the handles for the three standard communication channels (internally set up by the library), hints to set up the application's main window, etc.</para>
+      <para>The Windows-specific context <classname alt="boost::process::win32_context">win32_context</classname> provides mechanisms to provide some of this platform-specific information to the new process. The property <varname alt="boost::process::win32_context::startupinfo">startupinfo</varname> can receive a pointer to an already initialized <type>STARTUPINFO</type> object that is later passed to the <function>CreateProcess</function> call. If no such object is provided, the context behaves as <classname alt="boost::process::context">context</classname>.</para>
+      <para>The example below demonstrates this feature. It relies on features provided by Windows operating systems to start a GUI process with hints on how to create the main window. The example passes the suggested window position as well as size and then waits until the new process terminates.</para>
+      <programlisting><xi:include href="../example/win32_startup.cpp" parse="text"/></programlisting>
+    </section>
+    <section>
+      <title>Process information</title>
+      <para>The Windows <function>CreateProcess</function> system call starts a new process and returns a handle and an identifier for both the application's process and its main thread. Due to portability restrictions, the generic child implementation does not allow access to this information but, fortunately, the Windows-speficic child does. The class <classname alt="boost::process::win32_child">win32_child</classname> provides access to the information returned by the <function>CreateProcess</function> system call as described below:</para>
+      <table>
+        <caption>How to retrieve process information on Windows</caption>
+        <thead>
+          <tr>
+            <td><type>PROCESS_INFORMATION</type> field</td>
+            <td>Windows child method</td>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><varname>hProcess</varname></td>
+            <td><methodname alt="boost::process::win32_child::get_handle">get_handle</methodname></td>
+          </tr>
+          <tr>
+            <td><varname>dwProcessId</varname></td>
+            <td><methodname alt="boost::process::win32_child::get_id">get_id</methodname></td>
+          </tr>
+          <tr>
+            <td><varname>hThread</varname></td>
+            <td><methodname alt="boost::process::win32_child::get_primary_thread_handle">get_primary_thread_handle</methodname></td>
+          </tr>
+          <tr>
+            <td><varname>dwThreadId</varname></td>
+            <td><methodname alt="boost::process::win32_child::get_primary_thread_id">get_primary_thread_id</methodname></td>
+          </tr>
+        </tbody>
+      </table>
+      <para>Windows child objects can only be constructed by using the Windows-specific context <classname alt="boost::process::win32_context">win32_context</classname> even if the user does not need any of the extra features provided by that class.</para>
+      <para>The following example demonstrates how a program can retrieve all the information returned by Windows's <function>CreateProcess</function> system call; that is: the process' and primary thread's identifier and handle. It relies on the Windows-specific context and child classes to be able to access this information:</para>
+      <programlisting><xi:include href="../example/win32_child.cpp" parse="text"/></programlisting>
+    </section>
+  </section>
+</section>
