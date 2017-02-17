@@ -1,11 +1,13 @@
-#ifndef JD4_UTIL_H
-#define JD4_UTIL_H
+#ifndef JD4_PROCESS_H
+#define JD4_PROCESS_H
 
 #include <unistd.h>
 #include <boost/asio.hpp>
+#include <utility>
+#include "shim.h"
 
 template<typename Callback>
-pid_t Fork(Callback &&callback) {
+pid_t Fork(Callback callback) {
     pid_t pid = fork();
     if (pid == 0) {
         callback();
@@ -15,9 +17,9 @@ pid_t Fork(Callback &&callback) {
 }
 
 template<typename Callback>
-pid_t Fork(Callback &&callback, boost::asio::io_service &io_service) {
+pid_t Fork(boost::asio::io_service &io_service, Callback callback) {
     io_service.notify_fork(boost::asio::io_service::fork_prepare);
-    pid_t pid = Fork([&io_service, &callback]() {
+    pid_t pid = Fork([&io_service, callback = std::move(callback)]() {
         io_service.notify_fork(boost::asio::io_service::fork_child);
         callback();
     });
@@ -27,4 +29,7 @@ pid_t Fork(Callback &&callback, boost::asio::io_service &io_service) {
     return pid;
 }
 
-#endif //JD4_UTIL_H
+void Sandbox(const Path& sandbox_root,
+             const Vector<Pair<String, String>> &mount_points);
+
+#endif //JD4_PROCESS_H
