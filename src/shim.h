@@ -51,16 +51,7 @@ template <typename Element>
 using Vector = std::vector<Element>;
 
 // I/O
-const auto INHERIT_STREAM = boost::process::inherit_stream();
-
-using Child = boost::process::posix_child;
-using ChildContext = boost::process::posix_context;
 using EventLoop = boost::asio::io_service;
-
-inline Child LaunchChild(const String &exe, const Vector<String> &args, const ChildContext &ctx) {
-    return boost::process::posix_launch(exe, args, ctx);
-};
-
-using StreamBehavior = boost::process::stream_behavior;
+using Process = boost::process::child;
 
 #endif //JD4_SHIM_H

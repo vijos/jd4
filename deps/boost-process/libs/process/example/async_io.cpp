@@ -1,84 +1,65 @@
-// 
-// Boost.Process 
-// ~~~~~~~~~~~~~ 
-// 
-// Copyright (c) 2006, 2007 Julio M. Merino Vidal 
-// Copyright (c) 2008 Boris Schaeling 
-// 
-// Distributed under the Boost Software License, Version 1.0. (See accompanying 
-// file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt) 
-// 
+// Copyright (c) 2006, 2007 Julio M. Merino Vidal
+// Copyright (c) 2008 Ilya Sokolov, Boris Schaeling
+// Copyright (c) 2009 Boris Schaeling
+// Copyright (c) 2010 Felipe Tanus, Boris Schaeling
+// Copyright (c) 2011, 2012 Jeff Flinn, Boris Schaeling
+//
+// Distributed under the Boost Software License, Version 1.0. (See accompanying
+// file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 
-#if defined(__CYGWIN__) 
-#  define _WIN32_WINNT 0x0501 
-#  define __USE_W32_SOCKETS 
-#  undef BOOST_POSIX_API 
-#  define BOOST_WINDOWS_API 
-#endif 
-#include <boost/asio.hpp> 
-#define BOOST_PROCESS_WINDOWS_USE_NAMED_PIPE 
-#include <boost/process.hpp> 
-#include <boost/array.hpp> 
-#include <boost/bind.hpp> 
-#include <string> 
-#include <vector> 
-#include <iostream> 
+#include <boost/process.hpp>
+#include <boost/iostreams/device/file_descriptor.hpp>
+#include <boost/asio.hpp>
+#include <boost/array.hpp>
+#include <string>
+#if defined(BOOST_WINDOWS_API)
+#   include <Windows.h>
+#endif
 
-namespace bp = ::boost::process; 
-namespace ba = ::boost::asio; 
+using namespace boost::process;
+using namespace boost::process::initializers;
+using namespace boost::iostreams;
 
-ba::io_service io_service; 
-boost::array<char, 4096> buffer; 
+boost::process::pipe create_async_pipe()
+{
+#if defined(BOOST_WINDOWS_API)
+    std::string name = "\\\\.\\pipe\\boost_process_async_io";
+    HANDLE handle1 = ::CreateNamedPipeA(name.c_str(), PIPE_ACCESS_INBOUND |
+        FILE_FLAG_OVERLAPPED, 0, 1, 8192, 8192, 0, NULL);
+    HANDLE handle2 = ::CreateFileA(name.c_str(), GENERIC_WRITE, 0, NULL,
+        OPEN_EXISTING, FILE_FLAG_OVERLAPPED, NULL);
+    return make_pipe(handle1, handle2);
+#elif defined(BOOST_POSIX_API)
+    return create_pipe();
+#endif
+}
 
-#if defined(BOOST_POSIX_API) 
-ba::posix::stream_descriptor in(io_service); 
-#elif defined(BOOST_WINDOWS_API) 
-ba::windows::stream_handle in(io_service); 
-#else 
-#  error "Unsupported platform." 
-#endif 
+int main()
+{
+//[async_io
+    boost::process::pipe p = create_async_pipe();
 
-bp::child start_child() 
-{ 
-    std::string exec = "bjam.exe"; 
+    file_descriptor_sink sink(p.sink, close_handle);
+    execute(
+        run_exe("test.exe"),
+        bind_stdout(sink)
+    );
 
-    std::vector<std::string> args; 
-    args.push_back("bjam.exe"); 
-    args.push_back("--version"); 
+    file_descriptor_source source(p.source, close_handle);
 
-    bp::context ctx; 
-    ctx.stdout_behavior = bp::capture_stream(); 
-    ctx.environment = bp::self::get_environment(); 
+#if defined(BOOST_WINDOWS_API)
+    typedef boost::asio::windows::stream_handle pipe_end;
+#elif defined(BOOST_POSIX_API)
+    typedef boost::asio::posix::stream_descriptor pipe_end;
+#endif
 
-    return bp::launch(exec, args, ctx); 
-} 
+    boost::asio::io_service io_service;
+    pipe_end pend(io_service, p.source);
 
-void end_read(const boost::system::error_code &ec, std::size_t bytes_transferred); 
+    boost::array<char, 4096> buffer;
+    boost::asio::async_read(pend, boost::asio::buffer(buffer),
+        [](const boost::system::error_code&, std::size_t){});
 
-void begin_read() 
-{ 
-    in.async_read_some(boost::asio::buffer(buffer), 
-        boost::bind(&end_read, ba::placeholders::error, ba::placeholders::bytes_transferred)); 
-} 
-
-void end_read(const boost::system::error_code &ec, std::size_t bytes_transferred) 
-{ 
-    if (!ec) 
-    { 
-        std::cout << std::string(buffer.data(), bytes_transferred) << std::flush; 
-        begin_read(); 
-    } 
-} 
-
-int main() 
-{ 
-    bp::child c = start_child(); 
-
-    bp::pistream &is = c.get_stdout(); 
-    in.assign(is.handle().release()); 
-
-    begin_read(); 
-    io_service.run(); 
-
-    c.wait(); 
-} 
+    io_service.run();
+//]
+}

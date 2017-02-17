@@ -29,6 +29,15 @@ pid_t Fork(EventLoop &loop, Callback callback) {
     return pid;
 }
 
-void Sandbox(const Path& sandbox_root, const Vector<Pair<Path, Path>> &mount_points);
+void Sandbox(const Path &sandbox_root, const Vector<Pair<Path, Path>> &mount_points);
+
+inline Process Execute(const Path &path, const Vector<String> &args) {
+    using namespace boost::process::initializers;
+    return boost::process::execute(run_exe(path), set_args(args));
+}
+
+inline int WaitForExit(const Process &process) {
+    return boost::process::wait_for_exit(process);
+}
 
 #endif //JD4_PROCESS_H

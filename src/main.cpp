@@ -10,12 +10,10 @@ int main(int argc, char *argv[]) {
             {"/lib64", "/lib64"},
             {"/usr", "/usr"},
         });
-        ChildContext context;
-        context.input_behavior.emplace(STDIN_FILENO, INHERIT_STREAM);
-        context.output_behavior.emplace(STDOUT_FILENO, INHERIT_STREAM);
-        context.output_behavior.emplace(STDERR_FILENO, INHERIT_STREAM);
-        LaunchChild("/bin/bash", {"bunny"}, context).wait();
+        Process process = Execute("/bin/bash", {"bunny"});
+        WaitForExit(process);
     }));
+
     wait(NULL);
     loop.run();
 }
