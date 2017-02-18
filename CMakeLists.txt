@@ -6,6 +6,6 @@ set(CMAKE_CXX_STANDARD 14)
 set(Boost_USE_STATIC_LIBS ON)
 find_package(Boost REQUIRED COMPONENTS log system)
 
-add_executable(jd4 src/main.cpp src/process.cpp)
+add_executable(jd4 src/main.cpp src/process.cpp src/compiler.cpp src/util.cpp)
 target_include_directories(jd4 PRIVATE deps/boost-process)
 target_link_libraries(jd4 ${Boost_LIBRARIES} pthread)

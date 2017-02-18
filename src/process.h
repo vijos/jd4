@@ -31,9 +31,9 @@ pid_t Fork(EventLoop &loop, Callback callback) {
 
 void Sandbox(const Path &sandbox_root, const Vector<Pair<Path, Path>> &mount_points);
 
-inline Process Execute(const Path &path, const Vector<String> &args) {
+inline Process Execute(const Path &path, const Vector<String> &args, const Vector<String> &envs) {
     using namespace boost::process::initializers;
-    return boost::process::execute(run_exe(path), set_args(args));
+    return boost::process::execute(run_exe(path), set_args(args), set_env(envs));
 }
 
 inline int WaitForExit(const Process &process) {

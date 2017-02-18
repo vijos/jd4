@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <boost/asio.hpp>
 #include <boost/filesystem.hpp>
+#include <boost/filesystem/fstream.hpp>
 #include <boost/log/trivial.hpp>
 #include <boost/process.hpp>
 #include <boost/utility/string_ref.hpp>
@@ -50,8 +51,34 @@ using StringView = boost::string_ref;
 template <typename Element>
 using Vector = std::vector<Element>;
 
+inline Path TempPath() {
+    return boost::filesystem::temp_directory_path();
+}
+
+inline Path RandomPath(const Path &model) {
+    return boost::filesystem::unique_path(model);
+}
+
+inline void ChangeDir(const Path &path) {
+    boost::filesystem::current_path(path);
+}
+
+inline bool MakeDir(const Path &path) {
+    return boost::filesystem::create_directory(path);
+}
+
+inline void Remove(const Path &path) {
+    boost::filesystem::remove(path);
+}
+
+inline void RemoveAll(const Path &path) {
+    boost::filesystem::remove_all(path);
+}
+
 // I/O
 using EventLoop = boost::asio::io_service;
+using Ios = std::ios;
+using OFStream = boost::filesystem::ofstream;
 using Process = boost::process::child;
 
 #endif //JD4_SHIM_H
