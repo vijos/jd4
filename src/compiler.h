@@ -30,4 +30,8 @@ Box<Compiler> CreateCompiler(const Path &compiler_file,
                              const Path &execute_file,
                              const Vector<String> &execute_args);
 
+Box<Compiler> CreateInterpreter(const Path &code_file,
+                                const Path &execute_file,
+                                const Vector<String> &execute_args);
+
 #endif //JD4_COMPILER_H

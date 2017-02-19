@@ -8,6 +8,8 @@ int main(int argc, char *argv[]) {
     Box<Compiler> java_compiler = CreateCompiler(
         "/usr/bin/javac", {"javac", "-d", "out", "Program.java"},
         "Program.java", "/usr/bin/java", {"java", "Program"});
+    Box<Compiler> python_compiler = CreateInterpreter(
+        "foo.py", "/usr/bin/python", {"python", "foo.py"});
     {
         Box<Package> package = c_compiler->Compile(R"(#include <stdio.h>
 int main(void) {
@@ -22,6 +24,11 @@ int main(void) {
             System.out.println("It works!");
         }
     })");
+        package->Install("/tmp");
+        WaitForExit(package->Execute("/tmp"));
+    }
+    {
+        Box<Package> package = python_compiler->Compile("print 'It works!'");
         package->Install("/tmp");
         WaitForExit(package->Execute("/tmp"));
     }

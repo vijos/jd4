@@ -79,6 +79,28 @@ private:
     Vector<String> execute_args;
 };
 
+class Interpreter : public Compiler {
+public:
+    Interpreter(const Path &code_file,
+                const Path &execute_file,
+                const Vector<String> &execute_args)
+        : code_file(code_file),
+          execute_file(execute_file),
+          execute_args(execute_args)
+    {}
+
+    Box<Package> Compile(StringView code) const override {
+        Path output_dir = CreateTempPath("jd4.compiler.%%%%%%%%%%%%%%%%");
+        WriteFile(AbsolutePath(code_file, output_dir), code);
+        return Box<Package>(new CompiledPackage(output_dir, execute_file, execute_args));
+    }
+
+private:
+    Path code_file;
+    Path execute_file;
+    Vector<String> execute_args;
+};
+
 Box<Compiler> CreateCompiler(const Path &compiler_file,
                              const Vector<String> &compiler_args,
                              const Path &code_file,
@@ -89,4 +111,10 @@ Box<Compiler> CreateCompiler(const Path &compiler_file,
                                                code_file,
                                                execute_file,
                                                execute_args));
+}
+
+Box<Compiler> CreateInterpreter(const Path &code_file,
+                                const Path &execute_file,
+                                const Vector<String> &execute_args) {
+    return Box<Compiler>(new Interpreter(code_file, execute_file, execute_args));
 }
