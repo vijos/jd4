@@ -30,19 +30,6 @@ Process Fork(EventLoop &loop, Callback callback) {
     return process;
 }
 
-void PrepareSandbox(const Path &sandbox_dir, const Vector<Pair<Path, Path>> &mount_points);
-void CompleteSandbox();
-
-inline void Sandbox(const Path &sandbox_dir, const Vector<Pair<Path, Path>> &mount_points) {
-    PrepareSandbox(sandbox_dir, mount_points);
-    CompleteSandbox();
-}
-
-inline Process Execute(const Path &path, const Vector<String> &args, const Vector<String> &envs, const Path &work_dir) {
-    using namespace boost::process::initializers;
-    return boost::process::execute(run_exe(path), set_args(args), set_env(envs), start_in_dir(work_dir.string()));
-}
-
 inline int WaitForExit(const Process &process) {
     return boost::process::wait_for_exit(process);
 }

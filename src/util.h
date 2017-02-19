@@ -13,4 +13,18 @@ inline Path CreateTempPath(const Path &model) {
 
 void CopyFiles(const Path &from_dir, const Path &to_dir);
 
+void UnshareAll();
+
+void MountTmpfs(const Path &dir);
+
+void MakeBindMount(const Path &from, const Path &to, bool read_only);
+
+void PivotRoot(const Path &new_root, const Path &old_root);
+
+void MakeProcMount(const Path &to);
+
+void RemoveMount(const Path &dir);
+
+void Exec(const Path &path, const Vector<String> &args, const Vector<String> &envs);
+
 #endif //JD4_UTIL_H

@@ -2,35 +2,53 @@
 
 #include "process.h"
 
-class CompiledPackage : public Package {
+namespace {
+
+void PrepareSandboxDir(const Path &dir) {
+    MountTmpfs(dir);
+    MakeBindMount("/bin", dir / "bin", true);
+    MakeBindMount("/etc", dir / "etc", true);
+    MakeBindMount("/lib", dir / "lib", true);
+    MakeBindMount("/lib64", dir / "lib64", true);
+    MakeBindMount("/usr", dir / "usr", true);
+}
+
+} //namespace
+
+class SandboxedExecutable : public Executable {
 public:
-    explicit CompiledPackage(const Path &package_dir,
-                             const Path &execute_file,
-                             const Vector<String> &args)
-        : package_dir(package_dir),
-          execute_file(execute_file),
-          args(args)
+    explicit SandboxedExecutable(const Path &dir, const Path &file, const Vector<String> &args)
+        : dir(dir), file(file), args(args)
     {}
 
-    ~CompiledPackage() override {
-        RemoveAll(package_dir);
+    ~SandboxedExecutable() override {
+        RemoveAll(dir);
     }
 
-    void Install(const Path &install_dir) const override {
-        CopyFiles(package_dir, install_dir);
-    }
-
-    Process Execute(const Path &install_dir) const override {
-        return ::Execute(AbsolutePath(execute_file, install_dir), args, {}, install_dir);
+    void Execute() const override {
+        Path sandbox_dir = CreateTempPath("jd4.sandbox.%%%%%%%%%%%%%%%%");
+        WaitForExit(Fork([this, &sandbox_dir] {
+            UnshareAll();
+            PrepareSandboxDir(sandbox_dir);
+            MakeBindMount(dir, sandbox_dir / "in", false);
+            PivotRoot(sandbox_dir, "old_root");
+            WaitForExit(Fork([this]() {
+                MakeProcMount("/proc");
+                RemoveMount("old_root");
+                ChangeDir("/in");
+                Exec(AbsolutePath(file, "/in"), args, {"PATH=/usr/bin:/bin"});
+            }));
+        }));
+        RemoveAll(sandbox_dir);
     }
 
 private:
-    Path package_dir;
-    Path execute_file;
+    Path dir;
+    Path file;
     Vector<String> args;
 
-    CompiledPackage(const CompiledPackage &) = delete;
-    CompiledPackage &operator=(const CompiledPackage &) = delete;
+    SandboxedExecutable(const SandboxedExecutable &) = delete;
+    SandboxedExecutable &operator=(const SandboxedExecutable &) = delete;
 };
 
 class SandboxedCompiler : public Compiler {
@@ -47,28 +65,28 @@ public:
           execute_args(execute_args)
     {}
 
-    Box<Package> Compile(StringView code) const override {
-        Path compiler_canonical = CanonicalPath(compiler_file);
+    Box<Executable> Compile(StringView code) const override {
         Path sandbox_dir = CreateTempPath("jd4.sandbox.%%%%%%%%%%%%%%%%");
         Path output_dir = CreateTempPath("jd4.compiler.%%%%%%%%%%%%%%%%");
-        WaitForExit(Fork([this, code, &compiler_canonical, &sandbox_dir, &output_dir] {
-            PrepareSandbox(sandbox_dir, {
-                {"/bin", "/bin"},
-                {"/lib", "/lib"},
-                {"/lib64", "/lib64"},
-                {"/usr", "/usr"},
-                {output_dir, "/out"},
-            });
-            WriteFile(code_file, code);
-            WaitForExit(Fork([this, &compiler_canonical]() {
-                CHECK(MakeDir("proc"));
-                CHECK_UNIX(mount("/proc", "/proc", "proc", 0, NULL));
-                CompleteSandbox();
-                WaitForExit(Execute(compiler_canonical, compiler_args, {"PATH=/usr/bin:/bin"}, "/"));
+        WaitForExit(Fork([this, code, &sandbox_dir, &output_dir] {
+            UnshareAll();
+            MountTmpfs(sandbox_dir);
+            WriteFile(sandbox_dir / code_file, code);
+            MakeBindMount("/bin", sandbox_dir / "bin", true);
+            MakeBindMount("/etc", sandbox_dir / "etc", true);
+            MakeBindMount("/lib", sandbox_dir / "lib", true);
+            MakeBindMount("/lib64", sandbox_dir / "lib64", true);
+            MakeBindMount("/usr", sandbox_dir / "usr", true);
+            MakeBindMount(output_dir, sandbox_dir / "out", false);
+            PivotRoot(sandbox_dir, "old_root");
+            WaitForExit(Fork([this]() {
+                MakeProcMount("/proc");
+                RemoveMount("old_root");
+                Exec(compiler_file, compiler_args, {"PATH=/usr/bin:/bin"});
             }));
         }));
         RemoveAll(sandbox_dir);
-        return Box<Package>(new CompiledPackage(output_dir, execute_file, execute_args));
+        return Box<Executable>(new SandboxedExecutable(output_dir, execute_file, execute_args));
     }
 
 private:
@@ -79,20 +97,20 @@ private:
     Vector<String> execute_args;
 };
 
-class Interpreter : public Compiler {
+class SandboxedInterpreter : public Compiler {
 public:
-    Interpreter(const Path &code_file,
-                const Path &execute_file,
-                const Vector<String> &execute_args)
+    SandboxedInterpreter(const Path &code_file,
+                         const Path &execute_file,
+                         const Vector<String> &execute_args)
         : code_file(code_file),
           execute_file(execute_file),
           execute_args(execute_args)
     {}
 
-    Box<Package> Compile(StringView code) const override {
+    Box<Executable> Compile(StringView code) const override {
         Path output_dir = CreateTempPath("jd4.compiler.%%%%%%%%%%%%%%%%");
         WriteFile(AbsolutePath(code_file, output_dir), code);
-        return Box<Package>(new CompiledPackage(output_dir, execute_file, execute_args));
+        return Box<Executable>(new SandboxedExecutable(output_dir, execute_file, execute_args));
     }
 
 private:
@@ -101,11 +119,11 @@ private:
     Vector<String> execute_args;
 };
 
-Box<Compiler> CreateCompiler(const Path &compiler_file,
-                             const Vector<String> &compiler_args,
-                             const Path &code_file,
-                             const Path &execute_file,
-                             const Vector<String> &execute_args) {
+Box<Compiler> CreateSandboxedCompiler(const Path &compiler_file,
+                                      const Vector<String> &compiler_args,
+                                      const Path &code_file,
+                                      const Path &execute_file,
+                                      const Vector<String> &execute_args) {
     return Box<Compiler>(new SandboxedCompiler(compiler_file,
                                                compiler_args,
                                                code_file,
@@ -113,8 +131,8 @@ Box<Compiler> CreateCompiler(const Path &compiler_file,
                                                execute_args));
 }
 
-Box<Compiler> CreateInterpreter(const Path &code_file,
-                                const Path &execute_file,
-                                const Vector<String> &execute_args) {
-    return Box<Compiler>(new Interpreter(code_file, execute_file, execute_args));
+Box<Compiler> CreateSandboxedInterpreter(const Path &code_file,
+                                         const Path &execute_file,
+                                         const Vector<String> &execute_args) {
+    return Box<Compiler>(new SandboxedInterpreter(code_file, execute_file, execute_args));
 }

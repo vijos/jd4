@@ -1,35 +1,28 @@
 #include "compiler.h"
-#include "process.h"
+
+void Execute(Box<Executable> executable) {
+    for (int i = 0; i < 10; ++i) {
+        executable->Execute();
+    }
+}
 
 int main(int argc, char *argv[]) {
-    Box<Compiler> c_compiler = CreateCompiler(
-        "/usr/bin/gcc", {"gcc", "-static", "-o", "/out/foo.out", "foo.c"},
-        "foo.c", "foo.out", {"foo"});
-    Box<Compiler> java_compiler = CreateCompiler(
+    Box<Compiler> c = CreateSandboxedCompiler(
+        "/usr/bin/gcc", {"gcc", "-static", "-o", "/out/foo", "foo.c"},
+        "foo.c", "foo", {"foo"});
+    Box<Compiler> java = CreateSandboxedCompiler(
         "/usr/bin/javac", {"javac", "-d", "out", "Program.java"},
         "Program.java", "/usr/bin/java", {"java", "Program"});
-    Box<Compiler> python_compiler = CreateInterpreter(
+    Box<Compiler> python = CreateSandboxedInterpreter(
         "foo.py", "/usr/bin/python", {"python", "foo.py"});
-    {
-        Box<Package> package = c_compiler->Compile(R"(#include <stdio.h>
+    Execute(c->Compile(R"(#include <stdio.h>
 int main(void) {
     printf("It works!\n");
-})");
-        package->Install("/tmp");
-        WaitForExit(package->Execute("/tmp"));
-    }
-    {
-        Box<Package> package = java_compiler->Compile(R"(class Program {
+})"));
+    Execute(java->Compile(R"(class Program {
         public static void main(String[] args) {
             System.out.println("It works!");
         }
-    })");
-        package->Install("/tmp");
-        WaitForExit(package->Execute("/tmp"));
-    }
-    {
-        Box<Package> package = python_compiler->Compile("print 'It works!'");
-        package->Install("/tmp");
-        WaitForExit(package->Execute("/tmp"));
-    }
+    })"));
+    Execute(python->Compile("print 'It works!'"));
 }
