@@ -70,13 +70,8 @@ public:
         Path output_dir = CreateTempPath("jd4.compiler.%%%%%%%%%%%%%%%%");
         WaitForExit(Fork([this, code, &sandbox_dir, &output_dir] {
             UnshareAll();
-            MountTmpfs(sandbox_dir);
+            PrepareSandboxDir(sandbox_dir);
             WriteFile(sandbox_dir / code_file, code);
-            MakeBindMount("/bin", sandbox_dir / "bin", true);
-            MakeBindMount("/etc", sandbox_dir / "etc", true);
-            MakeBindMount("/lib", sandbox_dir / "lib", true);
-            MakeBindMount("/lib64", sandbox_dir / "lib64", true);
-            MakeBindMount("/usr", sandbox_dir / "usr", true);
             MakeBindMount(output_dir, sandbox_dir / "out", false);
             PivotRoot(sandbox_dir, "old_root");
             WaitForExit(Fork([this]() {
