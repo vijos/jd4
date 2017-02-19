@@ -8,6 +8,7 @@
 #include <boost/log/trivial.hpp>
 #include <boost/process.hpp>
 #include <boost/utility/string_ref.hpp>
+#include <memory>
 #include <string>
 #include <unordered_map>
 #include <utility>
@@ -38,18 +39,36 @@ extern "C" int pivot_root(const char *new_root, const char *put_old);
     } while (0)
 
 // Base.
+template <typename Type>
+using Box = std::unique_ptr<Type>;
+
 template <typename Key, typename Value>
 using HashMap = std::unordered_map<Key, Value>;
 
 template <typename First, typename Second>
 using Pair = std::pair<First, Second>;
 
-using Path = boost::filesystem::path;
 using String = std::string;
 using StringView = boost::string_ref;
 
 template <typename Element>
 using Vector = std::vector<Element>;
+
+// File
+using CopyOption = boost::filesystem::copy_option;
+using DirIterator = boost::filesystem::directory_iterator;
+using FileType = boost::filesystem::file_type;
+using Path = boost::filesystem::path;
+using Ios = std::ios;
+using OFStream = boost::filesystem::ofstream;
+
+inline Path AbsolutePath(const Path &path, const Path &base) {
+    return boost::filesystem::absolute(path, base);
+}
+
+inline Path CanonicalPath(const Path &path) {
+    return boost::filesystem::canonical(path);
+}
 
 inline Path TempPath() {
     return boost::filesystem::temp_directory_path();
@@ -57,6 +76,10 @@ inline Path TempPath() {
 
 inline Path RandomPath(const Path &model) {
     return boost::filesystem::unique_path(model);
+}
+
+inline void Copy(const Path &from, const Path &to, CopyOption copy_option) {
+    boost::filesystem::copy_file(from, to, copy_option);
 }
 
 inline void ChangeDir(const Path &path) {
@@ -77,8 +100,6 @@ inline void RemoveAll(const Path &path) {
 
 // I/O
 using EventLoop = boost::asio::io_service;
-using Ios = std::ios;
-using OFStream = boost::filesystem::ofstream;
 using Process = boost::process::child;
 
 #endif //JD4_SHIM_H

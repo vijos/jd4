@@ -1,8 +1,6 @@
 #include "process.h"
 
-#include <sys/mount.h>
-
-void Sandbox(const Path &sandbox_dir, const Vector<Pair<Path, Path>> &mount_points) {
+void PrepareSandbox(const Path &sandbox_dir, const Vector<Pair<Path, Path>> &mount_points) {
     CHECK_UNIX(unshare(CLONE_NEWNS | CLONE_NEWUTS | CLONE_NEWIPC |
                        CLONE_NEWUSER | CLONE_NEWPID | CLONE_NEWNET));
 
@@ -19,6 +17,9 @@ void Sandbox(const Path &sandbox_dir, const Vector<Pair<Path, Path>> &mount_poin
     ChangeDir(sandbox_dir);
     CHECK(MakeDir("old_root"));
     CHECK_UNIX(pivot_root(".", "old_root"));
-    CHECK_UNIX(umount2("old_root", MNT_DETACH));
-    Remove("old_root");
+}
+
+void CompleteSandbox() {
+    CHECK_UNIX(umount2("/old_root", MNT_DETACH));
+    Remove("/old_root");
 }
