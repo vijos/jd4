@@ -1,7 +1,7 @@
 import cloudpickle
 from butter.clone import unshare, CLONE_NEWNS, CLONE_NEWUTS, CLONE_NEWIPC, CLONE_NEWUSER, CLONE_NEWPID, CLONE_NEWNET
 from butter.system import mount, pivot_root, umount, MS_BIND, MS_RDONLY, MS_REMOUNT
-from os import chdir, close, fdopen, fork, mkdir, path, pipe, rmdir, waitpid
+from os import chdir, close, fdopen, fork, listdir, mkdir, path, pipe, remove, rmdir, spawnve, waitpid, P_WAIT
 from shutil import rmtree
 from sys import exit
 from tempfile import mkdtemp
@@ -28,6 +28,14 @@ class Sandbox:
         waitpid(self.pid, 0)
         rmtree(self.sandbox_dir)
 
+    def reset(self):
+        for name in listdir(self.io_dir):
+            full_path = path.join(self.io_dir, name)
+            if path.isdir(full_path):
+                rmtree(full_path)
+            else:
+                remove(full_path)
+
     def marshal(self, func):
         cloudpickle.dump(func, self.request_writer)
         self.request_writer.flush()
@@ -35,6 +43,10 @@ class Sandbox:
         if err:
             raise err
         return ret
+
+    def backdoor(self):
+        return self.marshal(lambda: spawnve(
+            P_WAIT, '/bin/bash', ['bunny'], {'PATH': '/usr/bin:/bin'}))
 
     @staticmethod
     def create(*, fork_twice=True, mount_proc=True):
@@ -98,3 +110,8 @@ class Sandbox:
                 ret, err = None, e
             cloudpickle.dump((ret, err), response_writer)
             response_writer.flush()
+
+if __name__ == '__main__':
+    sb = Sandbox.create()
+    print('io_dir: {}'.format(sb.io_dir))
+    print('return value: {}'.format(sb.backdoor()))
