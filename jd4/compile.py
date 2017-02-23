@@ -1,6 +1,5 @@
-from jd4.sandbox import Sandbox
+from jd4.sandbox import create_sandbox
 
-from io import BytesIO
 from os import chdir, mkdir, path, spawnve, P_WAIT
 from shutil import copytree, rmtree
 from tempfile import mkdtemp
@@ -83,25 +82,25 @@ class Interpreter:
         return Package(package_dir, self.execute_file, self.execute_args)
 
 if __name__ == '__main__':
-    sb = Sandbox.create()
+    sandbox = create_sandbox()
     gcc = Compiler('/usr/bin/gcc', ['gcc', '-o', '/io/foo', 'foo.c'],
                    'foo.c', 'foo', ['foo'])
     javac = Compiler('/usr/bin/javac', ['javac', '-d', 'io', 'Program.java'],
                      'Program.java', '/usr/bin/java', ['java', 'Program'])
     python = Interpreter('foo.py', '/usr/bin/python', ['python', 'foo.py'])
-    package = gcc.build(sb, b"""#include <stdio.h>
+    package = gcc.build(sandbox, b"""#include <stdio.h>
 int main(void) {
     printf("hello c\\n");
 }""")
     for i in range(10):
-        package.install(sb).execute(sb)
-    package = javac.build(sb, b"""class Program {
+        package.install(sandbox).execute(sandbox)
+    package = javac.build(sandbox, b"""class Program {
     public static void main(String[] args) {
         System.out.println("hello java");
     }
 }""")
     for i in range(10):
-        package.install(sb).execute(sb)
-    package = python.build(sb, b"print 'hello python'\n")
+        package.install(sandbox).execute(sandbox)
+    package = python.build(sandbox, b"print 'hello python'\n")
     for i in range(10):
-        package.install(sb).execute(sb)
+        package.install(sandbox).execute(sandbox)
