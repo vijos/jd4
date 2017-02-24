@@ -1,15 +1,24 @@
 from jd4.sandbox import create_sandbox
 
-from os import chdir, mkdir, path, spawnve, P_WAIT
+from os import chdir, dup2, execve, fork, mkdir, open as os_open, path, waitpid, \
+               O_RDONLY, O_WRONLY, WIFSTOPPED, WIFSIGNALED, WIFEXITED, WTERMSIG, WEXITSTATUS
+from pty import STDIN_FILENO, STDOUT_FILENO, STDERR_FILENO
 from shutil import copytree, rmtree
 from tempfile import mkdtemp
 
 SPAWN_ENV = {'PATH': '/usr/bin:/bin'}
 
-class CompileError(Exception):
-    pass
+def wait_process(pid):
+    while True:
+        _, status = waitpid(pid, 0)
+        if WIFSTOPPED(status):
+            continue
+        elif WIFSIGNALED(status):
+            return -WTERMSIG(status)
+        elif WIFEXITED(status):
+            return WEXITSTATUS(status)
 
-class UserRuntimeError(Exception):
+class CompileError(Exception):
     pass
 
 class Executable:
@@ -17,17 +26,24 @@ class Executable:
         self.execute_file = execute_file
         self.execute_args = execute_args
 
-    def execute(self, sandbox):
-        sandbox.marshal(self.do_execute)
+    def execute(self, sandbox, *, stdin_file=None, stdout_file=None, stderr_file=None):
+        return sandbox.marshal(lambda: self.do_execute(stdin_file, stdout_file, stderr_file))
 
-    def do_execute(self):
+    def do_execute(self, stdin_file, stdout_file, stderr_file):
         chdir('/io/package')
-        # TODO(iceboy): Time/memory limit.
-        # TODO(iceboy): Input/output.
-        # TODO(iceboy): Measure time and memory usage.
-        # TODO(iceboy): dropcaps, setuid?
-        if spawnve(P_WAIT, self.execute_file, self.execute_args, SPAWN_ENV) != 0:
-            raise UserRuntimeError
+        pid = fork()
+        if not pid:
+            if stdin_file:
+                dup2(os_open(stdin_file, O_RDONLY), STDIN_FILENO)
+            if stdout_file:
+                dup2(os_open(stdout_file, O_WRONLY), STDOUT_FILENO)
+            if stderr_file:
+                dup2(os_open(stderr_file, O_WRONLY), STDERR_FILENO)
+            # TODO(iceboy): Time/memory limit.
+            # TODO(iceboy): Measure time and memory usage.
+            # TODO(iceboy): dropcaps, setuid?
+            execve(self.execute_file, self.execute_args, SPAWN_ENV)
+        return wait_process(pid)
 
 class Package:
     def __init__(self, package_dir, execute_file, execute_args):
@@ -53,7 +69,8 @@ class Compiler:
 
     def build(self, sandbox, code):
         sandbox.reset()
-        sandbox.marshal(lambda: self.do_build(code))
+        if sandbox.marshal(lambda: self.do_build(code)) != 0:
+            raise CompileError
         package_dir = mkdtemp(prefix='jd4.package.')
         copytree(sandbox.io_dir, path.join(package_dir, 'package'))
         return Package(package_dir, self.execute_file, self.execute_args)
@@ -62,11 +79,13 @@ class Compiler:
         chdir('/')
         with open(self.code_file, 'wb') as f:
             f.write(code)
-        # TODO(iceboy): Time/memory limit.
-        # TODO(iceboy): Read compiler output.
-        # TODO(iceboy): dropcaps, setuid?
-        if spawnve(P_WAIT, self.compiler_file, self.compiler_args, SPAWN_ENV) != 0:
-            raise CompileError
+        pid = fork()
+        if not pid:
+            # TODO(iceboy): Time/memory limit.
+            # TODO(iceboy): Read compiler output.
+            # TODO(iceboy): dropcaps, setuid?
+            execve(self.compiler_file, self.compiler_args, SPAWN_ENV)
+        return wait_process(pid)
 
 class Interpreter:
     def __init__(self, code_file, execute_file, execute_args):
