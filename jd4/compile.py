@@ -1,5 +1,6 @@
 from jd4.sandbox import create_sandbox
 
+from collections import namedtuple
 from os import chdir, dup2, execve, fork, mkdir, open as os_open, path, waitpid, \
                O_RDONLY, O_WRONLY, WIFSTOPPED, WIFSIGNALED, WIFEXITED, WTERMSIG, WEXITSTATUS
 from pty import STDIN_FILENO, STDOUT_FILENO, STDERR_FILENO
@@ -17,9 +18,6 @@ def wait_process(pid):
             return -WTERMSIG(status)
         elif WIFEXITED(status):
             return WEXITSTATUS(status)
-
-class CompileError(Exception):
-    pass
 
 class Executable:
     def __init__(self, execute_file, execute_args):
@@ -69,11 +67,12 @@ class Compiler:
 
     def build(self, sandbox, code):
         sandbox.reset()
-        if sandbox.marshal(lambda: self.do_build(code)) != 0:
-            raise CompileError
+        status = sandbox.marshal(lambda: self.do_build(code))
+        if status:
+            return status, None
         package_dir = mkdtemp(prefix='jd4.package.')
         copytree(sandbox.io_dir, path.join(package_dir, 'package'))
-        return Package(package_dir, self.execute_file, self.execute_args)
+        return 0, Package(package_dir, self.execute_file, self.execute_args)
 
     def do_build(self, code):
         chdir('/')
@@ -93,7 +92,7 @@ class Interpreter:
         self.execute_file = execute_file
         self.execute_args = execute_args
 
-    def build(self, _sandbox, code):
+    def build(self, code):
         package_dir = mkdtemp(prefix='jd4.package.')
         mkdir(path.join(package_dir, 'package'))
         with open(path.join(package_dir, 'package', self.code_file), 'wb') as f:
@@ -107,19 +106,19 @@ if __name__ == '__main__':
     javac = Compiler('/usr/bin/javac', ['javac', '-d', 'io', 'Program.java'],
                      'Program.java', '/usr/bin/java', ['java', 'Program'])
     python = Interpreter('foo.py', '/usr/bin/python', ['python', 'foo.py'])
-    package = gcc.build(sandbox, b"""#include <stdio.h>
+    _, package = gcc.build(sandbox, b"""#include <stdio.h>
 int main(void) {
     printf("hello c\\n");
 }""")
     for i in range(10):
         package.install(sandbox).execute(sandbox)
-    package = javac.build(sandbox, b"""class Program {
+    _, package = javac.build(sandbox, b"""class Program {
     public static void main(String[] args) {
         System.out.println("hello java");
     }
 }""")
     for i in range(10):
         package.install(sandbox).execute(sandbox)
-    package = python.build(sandbox, b"print 'hello python'\n")
+    package = python.build(b"print 'hello python'\n")
     for i in range(10):
         package.install(sandbox).execute(sandbox)
