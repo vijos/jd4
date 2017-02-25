@@ -61,7 +61,6 @@ class Package:
 
     @mproperty
     def elfsize(self):
-        print('here')
         execute_file = path.join(self.package_dir, 'package', self.execute_file)
         elffile = ELFFile(open(execute_file, 'rb'))
         return sum(s.header['sh_size'] for s in elffile.iter_sections())
