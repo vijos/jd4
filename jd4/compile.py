@@ -1,10 +1,13 @@
-from jd4.sandbox import create_sandbox
-
+from elftools.elf.elffile import ELFFile
+from memoize import mproperty
 from os import chdir, dup2, execve, fork, mkdir, open as os_open, path, wait4, waitpid, \
                O_RDONLY, O_WRONLY, WIFSIGNALED, WTERMSIG, WEXITSTATUS
 from pty import STDIN_FILENO, STDOUT_FILENO, STDERR_FILENO
+from resource import setrlimit, RLIMIT_CPU, RLIMIT_AS
 from shutil import copytree, rmtree
 from tempfile import mkdtemp
+
+from jd4.sandbox import create_sandbox
 
 SPAWN_ENV = {'PATH': '/usr/bin:/bin'}
 
@@ -18,10 +21,13 @@ class Executable:
         self.execute_file = execute_file
         self.execute_args = execute_args
 
-    def execute(self, sandbox, *, stdin_file=None, stdout_file=None, stderr_file=None):
-        return sandbox.marshal(lambda: self.do_execute(stdin_file, stdout_file, stderr_file))
+    def execute(self, sandbox, *,
+                stdin_file=None, stdout_file=None, stderr_file=None,
+                time_sec=None, mem_kb=None):
+        return sandbox.marshal(lambda: self.do_execute(
+            stdin_file, stdout_file, stderr_file, time_sec, mem_kb))
 
-    def do_execute(self, stdin_file, stdout_file, stderr_file):
+    def do_execute(self, stdin_file, stdout_file, stderr_file, time_sec, mem_kb):
         chdir('/io/package')
         pid = fork()
         if not pid:
@@ -31,9 +37,10 @@ class Executable:
                 dup2(os_open(stdout_file, O_WRONLY), STDOUT_FILENO)
             if stderr_file:
                 dup2(os_open(stderr_file, O_WRONLY), STDERR_FILENO)
-            # TODO(iceboy): Time/memory limit.
-            # TODO(iceboy): Measure time and memory usage.
-            # TODO(iceboy): dropcaps, setuid?
+            if time_sec:
+                setrlimit(RLIMIT_CPU, (time_sec, time_sec))
+            if mem_kb:
+                setrlimit(RLIMIT_AS, (mem_kb * 1024, mem_kb * 1024))
             execve(self.execute_file, self.execute_args, SPAWN_ENV)
         _, status, rusage = wait4(pid, 0)
         return convert_status(status), rusage
@@ -51,6 +58,13 @@ class Package:
         sandbox.reset()
         copytree(path.join(self.package_dir, 'package'), path.join(sandbox.io_dir, 'package'))
         return Executable(self.execute_file, self.execute_args)
+
+    @mproperty
+    def elfsize(self):
+        print('here')
+        execute_file = path.join(self.package_dir, 'package', self.execute_file)
+        elffile = ELFFile(open(execute_file, 'rb'))
+        return sum(s.header['sh_size'] for s in elffile.iter_sections())
 
 class Compiler:
     def __init__(self, compiler_file, compiler_args, code_file, execute_file, execute_args):
@@ -77,7 +91,6 @@ class Compiler:
         if not pid:
             # TODO(iceboy): Time/memory limit.
             # TODO(iceboy): Read compiler output.
-            # TODO(iceboy): dropcaps, setuid?
             execve(self.compiler_file, self.compiler_args, SPAWN_ENV)
         _, status = waitpid(pid, 0)
         return convert_status(status)

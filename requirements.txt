@@ -1,2 +1,4 @@
 butter
 cloudpickle
+pyelftools
+memoize

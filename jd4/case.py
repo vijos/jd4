@@ -4,6 +4,7 @@ from functools import partial
 from io import TextIOWrapper
 from itertools import islice, zip_longest
 from os import mkfifo, path
+from signal import SIGKILL
 from shutil import copyfileobj
 from zipfile import ZipFile
 
@@ -13,7 +14,8 @@ from jd4.judge import STATUS_ACCEPTED, STATUS_WRONG_ANSWER, STATUS_RUNTIME_ERROR
 from jd4.sandbox import create_sandbox
 
 CHUNK_SIZE = 32768
-MAX_STDERR_SIZE = 32768
+MAX_STDERR_SIZE = 8192
+MEM_OFFSET_KB = 16384
 
 def chunk_and_strip_lines(f):
     prev = b''
@@ -40,6 +42,9 @@ class LegacyCase:
         self.score = score
 
     def judge(self, sandbox, package, executor):
+        elfsize = package.elfsize // 1024
+        if elfsize >= self.mem_kb:
+            return STATUS_MEMORY_LIMIT_EXCEEDED, 0, elfsize, b''
         executable = package.install(sandbox)
         stdin_file = path.join(sandbox.io_dir, 'stdin')
         mkfifo(stdin_file)
@@ -53,21 +58,21 @@ class LegacyCase:
         mkfifo(stderr_file)
         stderr_future = executor.submit(
             lambda: open(stderr_file, 'rb').read(MAX_STDERR_SIZE))
-        execute_status, rusage = executable.execute(sandbox,
-                                                    stdin_file='/io/stdin',
-                                                    stdout_file='/io/stdout',
-                                                    stderr_file='/io/stderr')
+        execute_status, rusage = executable.execute(
+            sandbox,
+            stdin_file='/io/stdin', stdout_file='/io/stdout', stderr_file='/io/stderr',
+            time_sec=self.time_sec, mem_kb=self.mem_kb + MEM_OFFSET_KB)
         stdin_future.result()
         correct = stdout_future.result()
         stderr = stderr_future.result()
         time_sec = rusage.ru_utime + rusage.ru_stime
         mem_kb = rusage.ru_maxrss
-        if execute_status:
-            status = STATUS_RUNTIME_ERROR
-        elif mem_kb >= self.mem_kb:
+        if mem_kb >= self.mem_kb:
             status = STATUS_MEMORY_LIMIT_EXCEEDED
-        elif time_sec >= self.time_sec:
+        elif execute_status == -SIGKILL or time_sec >= self.time_sec:
             status = STATUS_TIME_LIMIT_EXCEEDED
+        elif execute_status:
+            status = STATUS_RUNTIME_ERROR
         elif not correct:
             status = STATUS_WRONG_ANSWER
         else:
