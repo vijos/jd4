@@ -1,6 +1,5 @@
 from jd4.sandbox import create_sandbox
 
-from collections import namedtuple
 from os import chdir, dup2, execve, fork, mkdir, open as os_open, path, waitpid, \
                O_RDONLY, O_WRONLY, WIFSTOPPED, WIFSIGNALED, WIFEXITED, WTERMSIG, WEXITSTATUS
 from pty import STDIN_FILENO, STDOUT_FILENO, STDERR_FILENO
