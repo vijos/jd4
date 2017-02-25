@@ -8,7 +8,8 @@ from shutil import copyfileobj
 from zipfile import ZipFile
 
 from jd4.compile import Compiler
-from jd4.judge import STATUS_ACCEPTED, STATUS_WRONG_ANSWER, STATUS_RUNTIME_ERROR
+from jd4.judge import STATUS_ACCEPTED, STATUS_WRONG_ANSWER, STATUS_RUNTIME_ERROR, \
+                      STATUS_TIME_LIMIT_EXCEEDED, STATUS_MEMORY_LIMIT_EXCEEDED
 from jd4.sandbox import create_sandbox
 
 CHUNK_SIZE = 32768
@@ -52,21 +53,30 @@ class LegacyCase:
         mkfifo(stderr_file)
         stderr_future = executor.submit(
             lambda: open(stderr_file, 'rb').read(MAX_STDERR_SIZE))
-        if executable.execute(sandbox,
-                              stdin_file='/io/stdin',
-                              stdout_file='/io/stdout',
-                              stderr_file='/io/stderr'):
-            return STATUS_RUNTIME_ERROR
+        execute_status, rusage = executable.execute(sandbox,
+                                                    stdin_file='/io/stdin',
+                                                    stdout_file='/io/stdout',
+                                                    stderr_file='/io/stderr')
         stdin_future.result()
-        if not stdout_future.result():
-            return STATUS_WRONG_ANSWER
-        stderr_future.result()
-        return STATUS_ACCEPTED
+        correct = stdout_future.result()
+        stderr = stderr_future.result()
+        time_sec = rusage.ru_utime + rusage.ru_stime
+        mem_kb = rusage.ru_maxrss
+        if execute_status:
+            status = STATUS_RUNTIME_ERROR
+        elif mem_kb >= self.mem_kb:
+            status = STATUS_MEMORY_LIMIT_EXCEEDED
+        elif time_sec >= self.time_sec:
+            status = STATUS_TIME_LIMIT_EXCEEDED
+        elif not correct:
+            status = STATUS_WRONG_ANSWER
+        else:
+            status = STATUS_ACCEPTED
+        return status, time_sec, mem_kb, stderr
 
 def read_legacy_cases(file):
     zip = ZipFile(file)
-    config_raw = zip.open('Config.ini')
-    config = TextIOWrapper(config_raw)
+    config = TextIOWrapper(zip.open('Config.ini'))
     num_cases = int(config.readline())
     cases = list()
     for input, output, time_sec_str, score_str, mem_kb_str in \
@@ -74,7 +84,7 @@ def read_legacy_cases(file):
         open_input = partial(zip.open, path.join('Input', input))
         open_output = partial(zip.open, path.join('Output', output))
         cases.append(LegacyCase(open_input, open_output,
-                                int(time_sec_str), int(mem_kb_str), int(score_str)))
+                                float(time_sec_str), float(mem_kb_str), float(score_str)))
     return cases
 
 if __name__ == '__main__':

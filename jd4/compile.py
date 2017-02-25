@@ -1,22 +1,17 @@
 from jd4.sandbox import create_sandbox
 
-from os import chdir, dup2, execve, fork, mkdir, open as os_open, path, waitpid, \
-               O_RDONLY, O_WRONLY, WIFSTOPPED, WIFSIGNALED, WIFEXITED, WTERMSIG, WEXITSTATUS
+from os import chdir, dup2, execve, fork, mkdir, open as os_open, path, wait4, waitpid, \
+               O_RDONLY, O_WRONLY, WIFSIGNALED, WTERMSIG, WEXITSTATUS
 from pty import STDIN_FILENO, STDOUT_FILENO, STDERR_FILENO
 from shutil import copytree, rmtree
 from tempfile import mkdtemp
 
 SPAWN_ENV = {'PATH': '/usr/bin:/bin'}
 
-def wait_process(pid):
-    while True:
-        _, status = waitpid(pid, 0)
-        if WIFSTOPPED(status):
-            continue
-        elif WIFSIGNALED(status):
-            return -WTERMSIG(status)
-        elif WIFEXITED(status):
-            return WEXITSTATUS(status)
+def convert_status(status):
+    if WIFSIGNALED(status):
+        return -WTERMSIG(status)
+    return WEXITSTATUS(status)
 
 class Executable:
     def __init__(self, execute_file, execute_args):
@@ -40,7 +35,8 @@ class Executable:
             # TODO(iceboy): Measure time and memory usage.
             # TODO(iceboy): dropcaps, setuid?
             execve(self.execute_file, self.execute_args, SPAWN_ENV)
-        return wait_process(pid)
+        _, status, rusage = wait4(pid, 0)
+        return convert_status(status), rusage
 
 class Package:
     def __init__(self, package_dir, execute_file, execute_args):
@@ -83,7 +79,8 @@ class Compiler:
             # TODO(iceboy): Read compiler output.
             # TODO(iceboy): dropcaps, setuid?
             execve(self.compiler_file, self.compiler_args, SPAWN_ENV)
-        return wait_process(pid)
+        _, status = waitpid(pid, 0)
+        return convert_status(status)
 
 class Interpreter:
     def __init__(self, code_file, execute_file, execute_args):
