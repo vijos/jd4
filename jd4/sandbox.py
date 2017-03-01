@@ -1,16 +1,18 @@
 import cloudpickle
 from butter.clone import unshare, CLONE_NEWNS, CLONE_NEWUTS, CLONE_NEWIPC, CLONE_NEWUSER, CLONE_NEWPID, CLONE_NEWNET
 from butter.system import mount, pivot_root, umount, MS_BIND, MS_RDONLY, MS_REMOUNT
-from os import chdir, close, fdopen, fork, listdir, mkdir, path, pipe, remove, rmdir, spawnve, waitpid, P_WAIT
+from os import chdir, close, fdopen, fork, getegid, geteuid, listdir, makedirs, mkdir, path, pipe, remove, rmdir, setresgid, setresuid, spawnve, waitpid, P_WAIT
 from shutil import rmtree
 from sys import exit
 from tempfile import mkdtemp
 
 MNT_DETACH = 2
 
-def bind_mount(src, target, *, makedir=True, rdonly=True):
+def bind_mount(src, target, *, ignore_missing=True, makedir=True, rdonly=True):
+    if ignore_missing and not path.isdir(src):
+        return
     if makedir:
-        mkdir(target)
+        makedirs(target)
     mount(src, target, '', MS_BIND)
     if rdonly:
         mount(src, target, '', MS_BIND | MS_REMOUNT | MS_RDONLY)
@@ -29,6 +31,7 @@ class Sandbox:
         rmtree(self.sandbox_dir)
 
     def reset(self):
+        # TODO(iceboy): Remove everything except mount points.
         for name in listdir(self.io_dir):
             full_path = path.join(self.io_dir, name)
             if path.isdir(full_path):
@@ -67,8 +70,21 @@ def create_sandbox(*, fork_twice=True, mount_proc=True):
         return Sandbox(pid, sandbox_dir, io_dir, request_writer, response_reader)
     close(request_pipe_w)
     close(response_pipe_r)
+    host_euid = geteuid()
+    host_egid = getegid()
     unshare(CLONE_NEWNS | CLONE_NEWUTS | CLONE_NEWIPC |
             CLONE_NEWUSER | CLONE_NEWPID | CLONE_NEWNET)
+    with open('/proc/self/uid_map', 'w') as uid_map:
+        uid_map.write('1000 {} 1'.format(host_euid))
+    try:
+        with open('/proc/self/setgroups', 'w') as setgroups:
+            setgroups.write('deny')
+    except FileNotFoundError:
+        pass
+    with open('/proc/self/gid_map', 'w') as gid_map:
+        gid_map.write('1000 {} 1'.format(host_egid))
+    setresuid(1000, 1000, 1000)
+    setresgid(1000, 1000, 1000)
     if fork_twice:
         pid = fork()
         if pid != 0:
@@ -86,16 +102,27 @@ def create_sandbox(*, fork_twice=True, mount_proc=True):
         mkdir(proc_dir)
         mount('proc', proc_dir, 'proc')
     bind_mount('/bin', path.join(root_dir, 'bin'))
-    bind_mount('/etc', path.join(root_dir, 'etc'))
+    bind_mount('/etc/alternatives', path.join(root_dir, 'etc/alternatives'))
     bind_mount('/lib', path.join(root_dir, 'lib'))
     bind_mount('/lib64', path.join(root_dir, 'lib64'))
-    bind_mount('/usr', path.join(root_dir, 'usr'))
+    bind_mount('/usr/bin', path.join(root_dir, 'usr/bin'))
+    bind_mount('/usr/include', path.join(root_dir, 'usr/include'))
+    bind_mount('/usr/lib', path.join(root_dir, 'usr/lib'))
     bind_mount(io_dir, path.join(root_dir, 'io'), rdonly=False)
     chdir(root_dir)
     mkdir('old_root')
     pivot_root('.', 'old_root')
     umount('old_root', MNT_DETACH)
     rmdir('old_root')
+
+    # Create fake files.
+    # TODO(iceboy): This needs to be readonly or reset after use.
+    try:
+        mkdir('/etc')
+    except FileExistsError:
+        pass
+    with open('/etc/passwd', 'w') as passwd:
+        passwd.write('icebox:x:1000:1000:icebox:/:/bin/bash')
 
     # Execute pickles.
     while True:
