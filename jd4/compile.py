@@ -109,7 +109,7 @@ class Interpreter:
 
 if __name__ == '__main__':
     sandbox = create_sandbox()
-    gcc = Compiler('/usr/bin/gcc', ['gcc', '-o', '/io/foo', 'foo.c'],
+    gcc = Compiler('/usr/bin/gcc', ['gcc', '-std=c99', '-o', '/io/foo', 'foo.c'],
                    'foo.c', 'foo', ['foo'])
     javac = Compiler('/usr/bin/javac', ['javac', '-d', 'io', 'Program.java'],
                      'Program.java', '/usr/bin/java', ['java', 'Program'])
