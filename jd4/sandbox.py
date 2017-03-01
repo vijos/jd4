@@ -1,6 +1,6 @@
 import cloudpickle
 from butter.clone import unshare, CLONE_NEWNS, CLONE_NEWUTS, CLONE_NEWIPC, CLONE_NEWUSER, CLONE_NEWPID, CLONE_NEWNET
-from butter.system import mount, pivot_root, umount, MS_BIND, MS_RDONLY, MS_REMOUNT
+from butter.system import mount, pivot_root, umount, MS_BIND, MS_NOSUID, MS_RDONLY, MS_REMOUNT
 from os import chdir, close, fdopen, fork, getegid, geteuid, listdir, makedirs, mkdir, path, pipe, remove, rmdir, setresgid, setresuid, spawnve, waitpid, P_WAIT
 from shutil import rmtree
 from sys import exit
@@ -13,9 +13,9 @@ def bind_mount(src, target, *, ignore_missing=True, makedir=True, rdonly=True):
         return
     if makedir:
         makedirs(target)
-    mount(src, target, '', MS_BIND)
+    mount(src, target, '', MS_BIND | MS_NOSUID)
     if rdonly:
-        mount(src, target, '', MS_BIND | MS_REMOUNT | MS_RDONLY)
+        mount(src, target, '', MS_BIND | MS_REMOUNT | MS_RDONLY | MS_NOSUID)
 
 class Sandbox:
     def __init__(self, pid, sandbox_dir, io_dir, request_writer, response_reader):
@@ -96,11 +96,11 @@ def create_sandbox(*, fork_twice=True, mount_proc=True):
     response_writer = fdopen(response_pipe_w, 'wb')
 
     # Prepare sandbox filesystem.
-    mount('tmpfs', root_dir, 'tmpfs')
+    mount('tmpfs', root_dir, 'tmpfs', MS_NOSUID)
     if mount_proc:
         proc_dir = path.join(root_dir, 'proc')
         mkdir(proc_dir)
-        mount('proc', proc_dir, 'proc')
+        mount('proc', proc_dir, 'proc', MS_NOSUID)
     bind_mount('/bin', path.join(root_dir, 'bin'))
     bind_mount('/etc/alternatives', path.join(root_dir, 'etc/alternatives'))
     bind_mount('/lib', path.join(root_dir, 'lib'))
