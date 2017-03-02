@@ -3,6 +3,7 @@ from butter.clone import unshare, CLONE_NEWNS, CLONE_NEWUTS, CLONE_NEWIPC, CLONE
 from butter.system import mount, pivot_root, umount, MS_BIND, MS_NOSUID, MS_RDONLY, MS_REMOUNT
 from os import chdir, close, fdopen, fork, getegid, geteuid, listdir, makedirs, mkdir, path, pipe, remove, rmdir, setresgid, setresuid, spawnve, waitpid, P_WAIT
 from shutil import rmtree
+from socket import sethostname
 from sys import exit
 from tempfile import mkdtemp
 
@@ -85,6 +86,7 @@ def create_sandbox(*, fork_twice=True, mount_proc=True):
         gid_map.write('1000 {} 1'.format(host_egid))
     setresuid(1000, 1000, 1000)
     setresgid(1000, 1000, 1000)
+    sethostname('icebox')
     if fork_twice:
         pid = fork()
         if pid != 0:
