@@ -8,6 +8,7 @@ from signal import SIGKILL
 from shutil import copyfileobj
 from zipfile import ZipFile
 
+from jd4.cgroup import create_cgroup
 from jd4.compile import Compiler
 from jd4.judge import STATUS_ACCEPTED, STATUS_WRONG_ANSWER, STATUS_RUNTIME_ERROR, \
                       STATUS_TIME_LIMIT_EXCEEDED, STATUS_MEMORY_LIMIT_EXCEEDED
@@ -15,7 +16,6 @@ from jd4.sandbox import create_sandbox
 
 CHUNK_SIZE = 32768
 MAX_STDERR_SIZE = 8192
-MEM_OFFSET_KB = 16384
 
 def chunk_and_strip_lines(f):
     prev = b''
@@ -34,17 +34,14 @@ def compare_file(fa, fb):
     return all(x == y for x, y in zip_longest(a, b))
 
 class LegacyCase:
-    def __init__(self, open_input, open_output, time_sec, mem_kb, score):
+    def __init__(self, open_input, open_output, time_sec, memory_limit_bytes, score):
         self.open_input = open_input
         self.open_output = open_output
         self.time_sec = time_sec
-        self.mem_kb = mem_kb
+        self.memory_limit_bytes = memory_limit_bytes
         self.score = score
 
     def judge(self, sandbox, package, executor):
-        elfsize = package.elfsize // 1024
-        if elfsize >= self.mem_kb:
-            return STATUS_MEMORY_LIMIT_EXCEEDED, 0, elfsize, b''
         executable = package.install(sandbox)
         stdin_file = path.join(sandbox.io_dir, 'stdin')
         mkfifo(stdin_file)
@@ -58,16 +55,19 @@ class LegacyCase:
         mkfifo(stderr_file)
         stderr_future = executor.submit(
             lambda: open(stderr_file, 'rb').read(MAX_STDERR_SIZE))
-        execute_status, rusage = executable.execute(
-            sandbox,
-            stdin_file='/io/stdin', stdout_file='/io/stdout', stderr_file='/io/stderr',
-            time_sec=self.time_sec, mem_kb=self.mem_kb + MEM_OFFSET_KB)
+        cgroup = create_cgroup(path.join(sandbox.io_dir, 'cgroup'), self.memory_limit_bytes, executor)
+        execute_status, rusage = executable.execute(sandbox,
+                                                    stdin_file='/io/stdin',
+                                                    stdout_file='/io/stdout',
+                                                    stderr_file='/io/stderr',
+                                                    cgroup_file='/io/cgroup',
+                                                    time_sec=self.time_sec)
         stdin_future.result()
         correct = stdout_future.result()
         stderr = stderr_future.result()
         time_sec = rusage.ru_utime + rusage.ru_stime
-        mem_kb = rusage.ru_maxrss
-        if mem_kb >= self.mem_kb:
+        memory_usage_bytes = cgroup.memory_usage_bytes
+        if memory_usage_bytes >= self.memory_limit_bytes:
             status = STATUS_MEMORY_LIMIT_EXCEEDED
         elif execute_status == -SIGKILL or time_sec >= self.time_sec:
             status = STATUS_TIME_LIMIT_EXCEEDED
@@ -77,7 +77,7 @@ class LegacyCase:
             status = STATUS_WRONG_ANSWER
         else:
             status = STATUS_ACCEPTED
-        return status, time_sec, mem_kb, stderr
+        return status, time_sec, memory_usage_bytes, stderr
 
 def read_legacy_cases(file):
     zip = ZipFile(file)
@@ -89,7 +89,7 @@ def read_legacy_cases(file):
         open_input = partial(zip.open, path.join('Input', input))
         open_output = partial(zip.open, path.join('Output', output))
         cases.append(LegacyCase(open_input, open_output,
-                                float(time_sec_str), float(mem_kb_str), float(score_str)))
+                                float(time_sec_str), int(float(mem_kb_str) * 1024), float(score_str)))
     return cases
 
 if __name__ == '__main__':

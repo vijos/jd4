@@ -1,5 +1,3 @@
-from elftools.elf.elffile import ELFFile
-from memoize import mproperty
 from os import chdir, dup2, execve, fork, mkdir, open as os_open, path, wait4, waitpid, \
                O_RDONLY, O_WRONLY, WIFSIGNALED, WTERMSIG, WEXITSTATUS
 from pty import STDIN_FILENO, STDOUT_FILENO, STDERR_FILENO
@@ -7,6 +5,7 @@ from resource import setrlimit, RLIMIT_CPU, RLIMIT_AS
 from shutil import copytree, rmtree
 from tempfile import mkdtemp
 
+from jd4.cgroup import enter_cgroup
 from jd4.sandbox import create_sandbox
 
 SPAWN_ENV = {'PATH': '/usr/bin:/bin'}
@@ -22,12 +21,12 @@ class Executable:
         self.execute_args = execute_args
 
     def execute(self, sandbox, *,
-                stdin_file=None, stdout_file=None, stderr_file=None,
-                time_sec=None, mem_kb=None):
+                stdin_file=None, stdout_file=None, stderr_file=None, cgroup_file=None,
+                time_sec=None):
         return sandbox.marshal(lambda: self.do_execute(
-            stdin_file, stdout_file, stderr_file, time_sec, mem_kb))
+            stdin_file, stdout_file, stderr_file, cgroup_file, time_sec))
 
-    def do_execute(self, stdin_file, stdout_file, stderr_file, time_sec, mem_kb):
+    def do_execute(self, stdin_file, stdout_file, stderr_file, cgroup_file, time_sec):
         chdir('/io/package')
         pid = fork()
         if not pid:
@@ -37,10 +36,10 @@ class Executable:
                 dup2(os_open(stdout_file, O_WRONLY), STDOUT_FILENO)
             if stderr_file:
                 dup2(os_open(stderr_file, O_WRONLY), STDERR_FILENO)
+            if cgroup_file:
+                enter_cgroup(cgroup_file)
             if time_sec:
                 setrlimit(RLIMIT_CPU, (time_sec, time_sec))
-            if mem_kb:
-                setrlimit(RLIMIT_AS, (mem_kb * 1024, mem_kb * 1024))
             execve(self.execute_file, self.execute_args, SPAWN_ENV)
         _, status, rusage = wait4(pid, 0)
         return convert_status(status), rusage
@@ -58,12 +57,6 @@ class Package:
         sandbox.reset()
         copytree(path.join(self.package_dir, 'package'), path.join(sandbox.io_dir, 'package'))
         return Executable(self.execute_file, self.execute_args)
-
-    @mproperty
-    def elfsize(self):
-        execute_file = path.join(self.package_dir, 'package', self.execute_file)
-        elffile = ELFFile(open(execute_file, 'rb'))
-        return sum(s.header['sh_size'] for s in elffile.iter_sections())
 
 class Compiler:
     def __init__(self, compiler_file, compiler_args, code_file, execute_file, execute_args):
