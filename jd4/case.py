@@ -34,17 +34,17 @@ def compare_file(fa, fb):
     b = chunk_and_strip_lines(fb)
     return all(x == y for x, y in zip_longest(a, b))
 
-async def read_pipe(file):
+async def read_pipe(file, size):
     reader = asyncio.StreamReader()
     protocol = asyncio.StreamReaderProtocol(reader)
     await asyncio.get_event_loop().connect_read_pipe(lambda: protocol, open(file, 'rb'))
-    return await reader.read()
+    return await reader.read(size)
 
 class LegacyCase:
-    def __init__(self, open_input, open_output, time_sec, memory_limit_bytes, score):
+    def __init__(self, open_input, open_output, cpu_limit_ns, memory_limit_bytes, score):
         self.open_input = open_input
         self.open_output = open_output
-        self.time_sec = time_sec
+        self.cpu_limit_ns = cpu_limit_ns
         self.memory_limit_bytes = memory_limit_bytes
         self.score = score
 
@@ -60,19 +60,19 @@ class LegacyCase:
         cgroup = create_cgroup(path.join(sandbox.io_dir, 'cgroup'))
         cgroup.memory_limit_bytes = self.memory_limit_bytes
         cgroup.listen()
-        _, correct, stderr, _, (execute_status, rusage) = await asyncio.gather(
+        _, correct, stderr, _, execute_status = await asyncio.gather(
             loop.run_in_executor(None, lambda: copyfileobj(self.open_input(), open(stdin_file, 'wb'), CHUNK_SIZE)),
             loop.run_in_executor(None, lambda: compare_file(self.open_output(), open(stdout_file, 'rb'))),
-            read_pipe(stderr_file),
+            read_pipe(stderr_file, MAX_STDERR_SIZE),
             cgroup.accept_one(),
             loop.run_in_executor(None, lambda: executable.execute(
                 sandbox, stdin_file='/io/stdin', stdout_file='/io/stdout', stderr_file='/io/stderr',
-                cgroup_file='/io/cgroup', time_sec=self.time_sec)))
-        time_sec = rusage.ru_utime + rusage.ru_stime
+                cgroup_file='/io/cgroup')))
+        cpu_usage_ns = cgroup.cpu_usage_ns
         memory_usage_bytes = cgroup.memory_usage_bytes
         if memory_usage_bytes >= self.memory_limit_bytes:
             status = STATUS_MEMORY_LIMIT_EXCEEDED
-        elif execute_status == -SIGKILL or time_sec >= self.time_sec:
+        elif cpu_usage_ns >= self.cpu_limit_ns:
             status = STATUS_TIME_LIMIT_EXCEEDED
         elif execute_status:
             status = STATUS_RUNTIME_ERROR
@@ -80,18 +80,20 @@ class LegacyCase:
             status = STATUS_WRONG_ANSWER
         else:
             status = STATUS_ACCEPTED
-        return status, time_sec, memory_usage_bytes, stderr
+        return status, cpu_usage_ns, memory_usage_bytes, stderr
 
 def read_legacy_cases(file):
-    zip = ZipFile(file)
-    config = TextIOWrapper(zip.open('Config.ini'))
+    zip_file = ZipFile(file)
+    config = TextIOWrapper(zip_file.open('Config.ini'))
     num_cases = int(config.readline())
     for input, output, time_sec_str, score_str, mem_kb_str in \
         islice(csv.reader(config, delimiter='|'), num_cases):
-        open_input = partial(zip.open, path.join('Input', input))
-        open_output = partial(zip.open, path.join('Output', output))
+        open_input = partial(zip_file.open, path.join('Input', input))
+        open_output = partial(zip_file.open, path.join('Output', output))
         yield LegacyCase(open_input, open_output,
-                         float(time_sec_str), int(float(mem_kb_str) * 1024), float(score_str))
+                         int(float(time_sec_str) * 1e9),
+                         int(float(mem_kb_str) * 1024),
+                         float(score_str))
 
 if __name__ == '__main__':
     loop = asyncio.get_event_loop()

@@ -5,6 +5,7 @@ from socket import socket, AF_UNIX, SOCK_STREAM, SOCK_NONBLOCK, SOL_SOCKET, SO_P
 from tempfile import mkdtemp
 from time import sleep
 
+CPUACCT_CGROUP_ROOT = '/sys/fs/cgroup/cpuacct/jd4'
 MEMORY_CGROUP_ROOT = '/sys/fs/cgroup/memory/jd4'
 
 def kill_cgroup(cgroup_dir):
@@ -21,11 +22,13 @@ def delete_cgroup(cgroup_dir):
     rmdir(cgroup_dir)
 
 class CGroup(object):
-    def __init__(self, socket_path, memory_cgroup_dir):
+    def __init__(self, socket_path, cpuacct_cgroup_dir, memory_cgroup_dir):
         self.socket_path = socket_path
+        self.cpuacct_cgroup_dir = cpuacct_cgroup_dir
         self.memory_cgroup_dir = memory_cgroup_dir
 
     def __del__(self):
+        delete_cgroup(self.cpuacct_cgroup_dir)
         delete_cgroup(self.memory_cgroup_dir)
 
     def listen(self):
@@ -37,8 +40,15 @@ class CGroup(object):
         loop = asyncio.get_event_loop()
         accept_sock, _ = await loop.sock_accept(self.sock)
         pid = accept_sock.getsockopt(SOL_SOCKET, SO_PEERCRED)
+        with open(path.join(self.cpuacct_cgroup_dir, 'tasks'), 'w') as f:
+            f.write(str(pid))
         with open(path.join(self.memory_cgroup_dir, 'tasks'), 'w') as f:
             f.write(str(pid))
+
+    @property
+    def cpu_usage_ns(self):
+        with open(path.join(self.cpuacct_cgroup_dir, 'cpuacct.usage')) as f:
+            return int(f.read())
 
     @property
     def memory_limit_bytes(self):
@@ -57,8 +67,9 @@ class CGroup(object):
 
 def create_cgroup(socket_path):
     # TODO(iceboy): Initialize cgroup if interactive and necessary.
+    cpuacct_cgroup_dir = mkdtemp(prefix='', dir=CPUACCT_CGROUP_ROOT)
     memory_cgroup_dir = mkdtemp(prefix='', dir=MEMORY_CGROUP_ROOT)
-    return CGroup(socket_path, memory_cgroup_dir)
+    return CGroup(socket_path, cpuacct_cgroup_dir, memory_cgroup_dir)
 
 def enter_cgroup(socket_path):
     with socket(AF_UNIX, SOCK_STREAM) as sock:

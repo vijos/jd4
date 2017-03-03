@@ -1,7 +1,6 @@
-from os import chdir, dup2, execve, fork, mkdir, open as os_open, path, wait4, waitpid, \
+from os import chdir, dup2, execve, fork, mkdir, open as os_open, path, waitpid, \
                O_RDONLY, O_WRONLY, WIFSIGNALED, WTERMSIG, WEXITSTATUS
 from pty import STDIN_FILENO, STDOUT_FILENO, STDERR_FILENO
-from resource import setrlimit, RLIMIT_CPU
 from shutil import copytree, rmtree
 from tempfile import mkdtemp
 
@@ -21,12 +20,11 @@ class Executable:
         self.execute_args = execute_args
 
     def execute(self, sandbox, *,
-                stdin_file=None, stdout_file=None, stderr_file=None, cgroup_file=None,
-                time_sec=None):
+                stdin_file=None, stdout_file=None, stderr_file=None, cgroup_file=None):
         return sandbox.marshal(lambda: self.do_execute(
-            stdin_file, stdout_file, stderr_file, cgroup_file, time_sec))
+            stdin_file, stdout_file, stderr_file, cgroup_file))
 
-    def do_execute(self, stdin_file, stdout_file, stderr_file, cgroup_file, time_sec):
+    def do_execute(self, stdin_file, stdout_file, stderr_file, cgroup_file):
         chdir('/io/package')
         pid = fork()
         if not pid:
@@ -38,11 +36,9 @@ class Executable:
                 dup2(os_open(stderr_file, O_WRONLY), STDERR_FILENO)
             if cgroup_file:
                 enter_cgroup(cgroup_file)
-            if time_sec:
-                setrlimit(RLIMIT_CPU, (time_sec, time_sec))
             execve(self.execute_file, self.execute_args, SPAWN_ENV)
-        _, status, rusage = wait4(pid, 0)
-        return convert_status(status), rusage
+        _, status = waitpid(pid, 0)
+        return convert_status(status)
 
 class Package:
     def __init__(self, package_dir, execute_file, execute_args):
