@@ -1,3 +1,4 @@
+import asyncio
 import csv
 from concurrent.futures import ThreadPoolExecutor
 from functools import partial
@@ -33,6 +34,12 @@ def compare_file(fa, fb):
     b = chunk_and_strip_lines(fb)
     return all(x == y for x, y in zip_longest(a, b))
 
+async def read_pipe(file):
+    reader = asyncio.StreamReader()
+    protocol = asyncio.StreamReaderProtocol(reader)
+    await asyncio.get_event_loop().connect_read_pipe(lambda: protocol, open(file, 'rb'))
+    return await reader.read()
+
 class LegacyCase:
     def __init__(self, open_input, open_output, time_sec, memory_limit_bytes, score):
         self.open_input = open_input
@@ -41,30 +48,26 @@ class LegacyCase:
         self.memory_limit_bytes = memory_limit_bytes
         self.score = score
 
-    def judge(self, sandbox, package, executor):
+    async def judge(self, sandbox, package):
+        loop = asyncio.get_event_loop()
         executable = package.install(sandbox)
         stdin_file = path.join(sandbox.io_dir, 'stdin')
         mkfifo(stdin_file)
-        stdin_future = executor.submit(lambda: copyfileobj(
-            self.open_input(), open(stdin_file, 'wb'), CHUNK_SIZE))
         stdout_file = path.join(sandbox.io_dir, 'stdout')
         mkfifo(stdout_file)
-        stdout_future = executor.submit(lambda: compare_file(
-            self.open_output(), open(stdout_file, 'rb')))
         stderr_file = path.join(sandbox.io_dir, 'stderr')
         mkfifo(stderr_file)
-        stderr_future = executor.submit(
-            lambda: open(stderr_file, 'rb').read(MAX_STDERR_SIZE))
-        cgroup = create_cgroup(path.join(sandbox.io_dir, 'cgroup'), self.memory_limit_bytes, executor)
-        execute_status, rusage = executable.execute(sandbox,
-                                                    stdin_file='/io/stdin',
-                                                    stdout_file='/io/stdout',
-                                                    stderr_file='/io/stderr',
-                                                    cgroup_file='/io/cgroup',
-                                                    time_sec=self.time_sec)
-        stdin_future.result()
-        correct = stdout_future.result()
-        stderr = stderr_future.result()
+        cgroup = create_cgroup(path.join(sandbox.io_dir, 'cgroup'))
+        cgroup.memory_limit_bytes = self.memory_limit_bytes
+        cgroup.listen()
+        _, correct, stderr, _, (execute_status, rusage) = await asyncio.gather(
+            loop.run_in_executor(None, lambda: copyfileobj(self.open_input(), open(stdin_file, 'wb'), CHUNK_SIZE)),
+            loop.run_in_executor(None, lambda: compare_file(self.open_output(), open(stdout_file, 'rb'))),
+            read_pipe(stderr_file),
+            cgroup.accept_one(),
+            loop.run_in_executor(None, lambda: executable.execute(
+                sandbox, stdin_file='/io/stdin', stdout_file='/io/stdout', stderr_file='/io/stderr',
+                cgroup_file='/io/cgroup', time_sec=self.time_sec)))
         time_sec = rusage.ru_utime + rusage.ru_stime
         memory_usage_bytes = cgroup.memory_usage_bytes
         if memory_usage_bytes >= self.memory_limit_bytes:
@@ -83,17 +86,15 @@ def read_legacy_cases(file):
     zip = ZipFile(file)
     config = TextIOWrapper(zip.open('Config.ini'))
     num_cases = int(config.readline())
-    cases = list()
     for input, output, time_sec_str, score_str, mem_kb_str in \
         islice(csv.reader(config, delimiter='|'), num_cases):
         open_input = partial(zip.open, path.join('Input', input))
         open_output = partial(zip.open, path.join('Output', output))
-        cases.append(LegacyCase(open_input, open_output,
-                                float(time_sec_str), int(float(mem_kb_str) * 1024), float(score_str)))
-    return cases
+        yield LegacyCase(open_input, open_output,
+                         float(time_sec_str), int(float(mem_kb_str) * 1024), float(score_str))
 
 if __name__ == '__main__':
-    executor = ThreadPoolExecutor()
+    loop = asyncio.get_event_loop()
     sandbox = create_sandbox()
     gcc = Compiler('/usr/bin/gcc', ['gcc', '-std=c99', '-o', '/io/foo', 'foo.c'],
                    'foo.c', 'foo', ['foo'])
@@ -104,4 +105,4 @@ int main(void) {
     printf("%d\\n", a + b);
 }""")
     for case in read_legacy_cases('examples/P1000.zip'):
-        print(case.judge(sandbox, package, executor))
+        print(loop.run_until_complete(case.judge(sandbox, package)))

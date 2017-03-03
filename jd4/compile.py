@@ -1,7 +1,7 @@
 from os import chdir, dup2, execve, fork, mkdir, open as os_open, path, wait4, waitpid, \
                O_RDONLY, O_WRONLY, WIFSIGNALED, WTERMSIG, WEXITSTATUS
 from pty import STDIN_FILENO, STDOUT_FILENO, STDERR_FILENO
-from resource import setrlimit, RLIMIT_CPU, RLIMIT_AS
+from resource import setrlimit, RLIMIT_CPU
 from shutil import copytree, rmtree
 from tempfile import mkdtemp
 
