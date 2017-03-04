@@ -2,7 +2,8 @@ import cloudpickle
 from asyncio import get_event_loop, open_connection
 from butter.clone import unshare, CLONE_NEWNS, CLONE_NEWUTS, CLONE_NEWIPC, CLONE_NEWUSER, CLONE_NEWPID, CLONE_NEWNET
 from butter.system import mount, pivot_root, umount, MS_BIND, MS_NOSUID, MS_RDONLY, MS_REMOUNT
-from os import chdir, fork, getegid, geteuid, listdir, makedirs, mkdir, path, remove, rmdir, setresgid, setresuid, spawnve, waitpid, P_WAIT
+from fcntl import fcntl, F_SETFL
+from os import chdir, fork, getegid, geteuid, listdir, makedirs, mkdir, path, remove, rmdir, setresgid, setresuid, spawnve, waitpid, P_WAIT, O_NONBLOCK
 from shutil import rmtree
 from socket import sethostname, socketpair
 from struct import pack, unpack
@@ -33,7 +34,7 @@ class Sandbox:
         waitpid(self.pid, 0)
         rmtree(self.sandbox_dir)
 
-    def reset(self):
+    async def reset(self):
         # TODO(iceboy): Remove everything except mount points.
         for name in listdir(self.io_dir):
             full_path = path.join(self.io_dir, name)
@@ -138,7 +139,9 @@ async def create_sandbox(*, fork_twice=True, mount_proc=True):
         socket_file.flush()
 
 if __name__ == '__main__':
-    loop = get_event_loop()
-    sandbox = loop.run_until_complete(create_sandbox())
-    print('io_dir: {}'.format(sandbox.io_dir))
-    print('return value: {}'.format(loop.run_until_complete(sandbox.backdoor())))
+    async def main():
+        sandbox = await create_sandbox()
+        print('io_dir: {}'.format(sandbox.io_dir))
+        print('return value: {}'.format(await sandbox.backdoor()))
+
+    get_event_loop().run_until_complete(main())

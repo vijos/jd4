@@ -7,7 +7,7 @@ from os import fdopen, mkfifo, open as os_open, path, O_RDONLY, O_NONBLOCK
 from shutil import copyfileobj
 from zipfile import ZipFile
 
-from jd4.cgroup import create_cgroup
+from jd4.cgroup import CGroup
 from jd4.compile import Compiler
 from jd4.judge import STATUS_ACCEPTED, STATUS_WRONG_ANSWER, STATUS_RUNTIME_ERROR, \
                       STATUS_TIME_LIMIT_EXCEEDED, STATUS_MEMORY_LIMIT_EXCEEDED
@@ -49,21 +49,21 @@ class LegacyCase:
 
     async def judge(self, sandbox, package):
         loop = get_event_loop()
-        executable = package.install(sandbox)
+        executable = await package.install(sandbox)
         stdin_file = path.join(sandbox.io_dir, 'stdin')
         mkfifo(stdin_file)
         stdout_file = path.join(sandbox.io_dir, 'stdout')
         mkfifo(stdout_file)
         stderr_file = path.join(sandbox.io_dir, 'stderr')
         mkfifo(stderr_file)
-        cgroup = create_cgroup(path.join(sandbox.io_dir, 'cgroup'))
+        cgroup = CGroup()
         cgroup.memory_limit_bytes = self.memory_limit_bytes
 
         _, correct, stderr, _, execute_status = await gather(
             loop.run_in_executor(None, lambda: copyfileobj(self.open_input(), open(stdin_file, 'wb'), CHUNK_SIZE)),
             loop.run_in_executor(None, lambda: compare_file(self.open_output(), open(stdout_file, 'rb'))),
             read_pipe(stderr_file, MAX_STDERR_SIZE),
-            cgroup.accept_one(),
+            cgroup.accept(path.join(sandbox.io_dir, 'cgroup')),
             executable.execute(sandbox,
                                stdin_file='/io/stdin',
                                stdout_file='/io/stdout',
@@ -96,18 +96,18 @@ def read_legacy_cases(file):
                          int(float(mem_kb_str) * 1024),
                          float(score_str))
 
-async def main():
-    sandbox = await create_sandbox()
-    gcc = Compiler('/usr/bin/gcc', ['gcc', '-std=c99', '-o', '/io/foo', 'foo.c'],
-                   'foo.c', 'foo', ['foo'])
-    _, package = await gcc.build(sandbox, b"""#include <stdio.h>
+if __name__ == '__main__':
+    async def main():
+        sandbox = await create_sandbox()
+        gcc = Compiler('/usr/bin/gcc', ['gcc', '-std=c99', '-o', '/io/foo', 'foo.c'],
+                       'foo.c', 'foo', ['foo'])
+        _, package = await gcc.build(sandbox, b"""#include <stdio.h>
 int main(void) {
     int a, b;
     scanf("%d%d", &a, &b);
     printf("%d\\n", a + b);
 }""")
-    for case in read_legacy_cases('examples/P1000.zip'):
-        print(await case.judge(sandbox, package))
+        for case in read_legacy_cases('examples/P1000.zip'):
+            print(await case.judge(sandbox, package))
 
-if __name__ == '__main__':
     get_event_loop().run_until_complete(main())

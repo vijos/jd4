@@ -22,19 +22,19 @@ def delete_cgroup(cgroup_dir):
     rmdir(cgroup_dir)
 
 class CGroup(object):
-    def __init__(self, socket_path, cpuacct_cgroup_dir, memory_cgroup_dir):
-        self.socket_path = socket_path
-        self.cpuacct_cgroup_dir = cpuacct_cgroup_dir
-        self.memory_cgroup_dir = memory_cgroup_dir
+    def __init__(self):
+        # TODO(iceboy): Initialize cgroup if interactive and necessary.
+        self.cpuacct_cgroup_dir = mkdtemp(prefix='', dir=CPUACCT_CGROUP_ROOT)
+        self.memory_cgroup_dir = mkdtemp(prefix='', dir=MEMORY_CGROUP_ROOT)
 
     def __del__(self):
         delete_cgroup(self.cpuacct_cgroup_dir)
         delete_cgroup(self.memory_cgroup_dir)
 
-    async def accept_one(self):
+    async def accept(self, socket_path):
         loop = asyncio.get_event_loop()
         listen_sock = socket(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK)
-        listen_sock.bind(self.socket_path)
+        listen_sock.bind(socket_path)
         listen_sock.listen()
         accept_sock, _ = await loop.sock_accept(listen_sock)
         listen_sock.close()
@@ -64,12 +64,6 @@ class CGroup(object):
     def memory_usage_bytes(self):
         with open(path.join(self.memory_cgroup_dir, 'memory.max_usage_in_bytes')) as f:
             return int(f.read())
-
-def create_cgroup(socket_path):
-    # TODO(iceboy): Initialize cgroup if interactive and necessary.
-    cpuacct_cgroup_dir = mkdtemp(prefix='', dir=CPUACCT_CGROUP_ROOT)
-    memory_cgroup_dir = mkdtemp(prefix='', dir=MEMORY_CGROUP_ROOT)
-    return CGroup(socket_path, cpuacct_cgroup_dir, memory_cgroup_dir)
 
 def enter_cgroup(socket_path):
     with socket(AF_UNIX, SOCK_STREAM) as sock:

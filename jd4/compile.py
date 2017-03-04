@@ -50,9 +50,13 @@ class Package:
     def __del__(self):
         rmtree(self.package_dir)
 
-    def install(self, sandbox):
-        sandbox.reset()
-        copytree(path.join(self.package_dir, 'package'), path.join(sandbox.io_dir, 'package'))
+    async def install(self, sandbox):
+        loop = get_event_loop()
+        await sandbox.reset()
+        await loop.run_in_executor(None,
+                                   copytree,
+                                   path.join(self.package_dir, 'package'),
+                                   path.join(sandbox.io_dir, 'package'))
         return Executable(self.execute_file, self.execute_args)
 
 class Compiler:
@@ -64,12 +68,16 @@ class Compiler:
         self.execute_args = execute_args
 
     async def build(self, sandbox, code):
-        sandbox.reset()
+        loop = get_event_loop()
+        await sandbox.reset()
         status = await sandbox.marshal(lambda: self.do_build(code))
         if status:
             return status, None
         package_dir = mkdtemp(prefix='jd4.package.')
-        copytree(sandbox.io_dir, path.join(package_dir, 'package'))
+        await loop.run_in_executor(None,
+                                   copytree,
+                                   sandbox.io_dir,
+                                   path.join(package_dir, 'package'))
         return 0, Package(package_dir, self.execute_file, self.execute_args)
 
     def do_build(self, code):
@@ -97,29 +105,32 @@ class Interpreter:
             f.write(code)
         return Package(package_dir, self.execute_file, self.execute_args)
 
-async def main():
-    sandbox = await create_sandbox()
-    gcc = Compiler('/usr/bin/gcc', ['gcc', '-std=c99', '-o', '/io/foo', 'foo.c'],
-                   'foo.c', 'foo', ['foo'])
-    javac = Compiler('/usr/bin/javac', ['javac', '-d', 'io', 'Program.java'],
-                     'Program.java', '/usr/bin/java', ['java', 'Program'])
-    python = Interpreter('foo.py', '/usr/bin/python', ['python', 'foo.py'])
-    _, package = await gcc.build(sandbox, b"""#include <stdio.h>
+if __name__ == '__main__':
+    async def main():
+        sandbox = await create_sandbox()
+        gcc = Compiler('/usr/bin/gcc', ['gcc', '-std=c99', '-o', '/io/foo', 'foo.c'],
+                       'foo.c', 'foo', ['foo'])
+        javac = Compiler('/usr/bin/javac', ['javac', '-d', 'io', 'Program.java'],
+                         'Program.java', '/usr/bin/java', ['java', 'Program'])
+        python = Interpreter('foo.py', '/usr/bin/python', ['python', 'foo.py'])
+        _, package = await gcc.build(sandbox, b"""#include <stdio.h>
 int main(void) {
     printf("hello c\\n");
 }""")
-    for i in range(10):
-        await package.install(sandbox).execute(sandbox)
-    _, package = await javac.build(sandbox, b"""class Program {
+        for i in range(10):
+            executable = await package.install(sandbox)
+            await executable.execute(sandbox)
+        _, package = await javac.build(sandbox, b"""class Program {
     public static void main(String[] args) {
         System.out.println("hello java");
     }
 }""")
-    for i in range(10):
-        await package.install(sandbox).execute(sandbox)
-    package = python.build(b"print 'hello python'\n")
-    for i in range(10):
-        await package.install(sandbox).execute(sandbox)
+        for i in range(10):
+            executable = await package.install(sandbox)
+            await executable.execute(sandbox)
+        package = python.build(b"print 'hello python'\n")
+        for i in range(10):
+            executable = await package.install(sandbox)
+            await executable.execute(sandbox)
 
-if __name__ == '__main__':
     get_event_loop().run_until_complete(main())
