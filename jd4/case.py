@@ -101,11 +101,11 @@ async def main():
     gcc = Compiler('/usr/bin/gcc', ['gcc', '-std=c99', '-o', '/io/foo', 'foo.c'],
                    'foo.c', 'foo', ['foo'])
     _, package = await gcc.build(sandbox, b"""#include <stdio.h>
-    int main(void) {
-        int a, b;
-        scanf("%d%d", &a, &b);
-        printf("%d\\n", a + b);
-    }""")
+int main(void) {
+    int a, b;
+    scanf("%d%d", &a, &b);
+    printf("%d\\n", a + b);
+}""")
     for case in read_legacy_cases('examples/P1000.zip'):
         print(await case.judge(sandbox, package))
 

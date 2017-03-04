@@ -105,16 +105,16 @@ async def main():
                      'Program.java', '/usr/bin/java', ['java', 'Program'])
     python = Interpreter('foo.py', '/usr/bin/python', ['python', 'foo.py'])
     _, package = await gcc.build(sandbox, b"""#include <stdio.h>
-    int main(void) {
-        printf("hello c\\n");
-    }""")
+int main(void) {
+    printf("hello c\\n");
+}""")
     for i in range(10):
         await package.install(sandbox).execute(sandbox)
     _, package = await javac.build(sandbox, b"""class Program {
-        public static void main(String[] args) {
-            System.out.println("hello java");
-        }
-    }""")
+    public static void main(String[] args) {
+        System.out.println("hello java");
+    }
+}""")
     for i in range(10):
         await package.install(sandbox).execute(sandbox)
     package = python.build(b"print 'hello python'\n")
