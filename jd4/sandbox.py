@@ -1,9 +1,11 @@
 import cloudpickle
+from asyncio import get_event_loop, open_connection
 from butter.clone import unshare, CLONE_NEWNS, CLONE_NEWUTS, CLONE_NEWIPC, CLONE_NEWUSER, CLONE_NEWPID, CLONE_NEWNET
 from butter.system import mount, pivot_root, umount, MS_BIND, MS_NOSUID, MS_RDONLY, MS_REMOUNT
-from os import chdir, close, fdopen, fork, getegid, geteuid, listdir, makedirs, mkdir, path, pipe, remove, rmdir, setresgid, setresuid, spawnve, waitpid, P_WAIT
+from os import chdir, fork, getegid, geteuid, listdir, makedirs, mkdir, path, remove, rmdir, setresgid, setresuid, spawnve, waitpid, P_WAIT
 from shutil import rmtree
-from socket import sethostname
+from socket import sethostname, socketpair
+from struct import pack, unpack
 from sys import exit
 from tempfile import mkdtemp
 
@@ -19,15 +21,15 @@ def bind_mount(src, target, *, ignore_missing=True, makedir=True, rdonly=True):
         mount(src, target, '', MS_BIND | MS_REMOUNT | MS_RDONLY | MS_NOSUID)
 
 class Sandbox:
-    def __init__(self, pid, sandbox_dir, io_dir, request_writer, response_reader):
+    def __init__(self, pid, sandbox_dir, io_dir, reader, writer):
         self.pid = pid
         self.sandbox_dir = sandbox_dir
         self.io_dir = io_dir
-        self.request_writer = request_writer
-        self.response_reader = response_reader
+        self.reader = reader
+        self.writer = writer
 
     def __del__(self):
-        self.request_writer.close()
+        self.writer.write_eof()
         waitpid(self.pid, 0)
         rmtree(self.sandbox_dir)
 
@@ -40,37 +42,33 @@ class Sandbox:
             else:
                 remove(full_path)
 
-    def marshal(self, func):
-        cloudpickle.dump(func, self.request_writer)
-        self.request_writer.flush()
-        ret, err = cloudpickle.load(self.response_reader)
+    async def marshal(self, func):
+        cloudpickle.dump(func, self.writer)
+        length, = unpack('I', await self.reader.read(4))
+        ret, err = cloudpickle.loads(await self.reader.read(length))
         if err:
             raise err
         return ret
 
-    def backdoor(self):
-        return self.marshal(lambda: spawnve(
+    async def backdoor(self):
+        return await self.marshal(lambda: spawnve(
             P_WAIT, '/bin/bash', ['bunny'], {'PATH': '/usr/bin:/bin'}))
 
-def create_sandbox(*, fork_twice=True, mount_proc=True):
+async def create_sandbox(*, fork_twice=True, mount_proc=True):
     sandbox_dir = mkdtemp(prefix='jd4.sandbox.')
     root_dir = path.join(sandbox_dir, 'root')
     mkdir(root_dir)
     io_dir = path.join(sandbox_dir, 'io')
     mkdir(io_dir)
-    request_pipe_r, request_pipe_w = pipe()
-    response_pipe_r, response_pipe_w = pipe()
+    parent_socket, child_socket = socketpair()
 
     # Fork child and unshare.
     pid = fork()
     if pid != 0:
-        close(request_pipe_r)
-        close(response_pipe_w)
-        request_writer = fdopen(request_pipe_w, 'wb')
-        response_reader = fdopen(response_pipe_r, 'rb')
-        return Sandbox(pid, sandbox_dir, io_dir, request_writer, response_reader)
-    close(request_pipe_w)
-    close(response_pipe_r)
+        child_socket.close()
+        reader, writer = await open_connection(sock=parent_socket)
+        return Sandbox(pid, sandbox_dir, io_dir, reader, writer)
+    parent_socket.close()
     host_euid = geteuid()
     host_egid = getegid()
     unshare(CLONE_NEWNS | CLONE_NEWUTS | CLONE_NEWIPC |
@@ -90,12 +88,9 @@ def create_sandbox(*, fork_twice=True, mount_proc=True):
     if fork_twice:
         pid = fork()
         if pid != 0:
-            close(request_pipe_r)
-            close(response_pipe_w)
+            child_socket.close()
             waitpid(pid, 0)
             exit()
-    request_reader = fdopen(request_pipe_r, 'rb')
-    response_writer = fdopen(response_pipe_w, 'wb')
 
     # Prepare sandbox filesystem.
     mount('tmpfs', root_dir, 'tmpfs', MS_NOSUID)
@@ -127,19 +122,23 @@ def create_sandbox(*, fork_twice=True, mount_proc=True):
         passwd.write('icebox:x:1000:1000:icebox:/:/bin/bash')
 
     # Execute pickles.
+    socket_file = child_socket.makefile('rwb')
     while True:
         try:
-            func = cloudpickle.load(request_reader)
+            func = cloudpickle.load(socket_file)
         except EOFError:
             exit()
         try:
             ret, err = func(), None
         except Exception as e:
             ret, err = None, e
-        cloudpickle.dump((ret, err), response_writer)
-        response_writer.flush()
+        data = cloudpickle.dumps((ret, err))
+        socket_file.write(pack('I', len(data)))
+        socket_file.write(data)
+        socket_file.flush()
 
 if __name__ == '__main__':
-    sandbox = create_sandbox()
+    loop = get_event_loop()
+    sandbox = loop.run_until_complete(create_sandbox())
     print('io_dir: {}'.format(sandbox.io_dir))
-    print('return value: {}'.format(sandbox.backdoor()))
+    print('return value: {}'.format(loop.run_until_complete(sandbox.backdoor())))

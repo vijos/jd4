@@ -1,3 +1,4 @@
+from asyncio import get_event_loop
 from os import chdir, dup2, execve, fork, mkdir, open as os_open, path, waitpid, \
                O_RDONLY, O_WRONLY, WIFSIGNALED, WTERMSIG, WEXITSTATUS
 from pty import STDIN_FILENO, STDOUT_FILENO, STDERR_FILENO
@@ -19,9 +20,9 @@ class Executable:
         self.execute_file = execute_file
         self.execute_args = execute_args
 
-    def execute(self, sandbox, *,
+    async def execute(self, sandbox, *,
                 stdin_file=None, stdout_file=None, stderr_file=None, cgroup_file=None):
-        return sandbox.marshal(lambda: self.do_execute(
+        return await sandbox.marshal(lambda: self.do_execute(
             stdin_file, stdout_file, stderr_file, cgroup_file))
 
     def do_execute(self, stdin_file, stdout_file, stderr_file, cgroup_file):
@@ -62,9 +63,9 @@ class Compiler:
         self.execute_file = execute_file
         self.execute_args = execute_args
 
-    def build(self, sandbox, code):
+    async def build(self, sandbox, code):
         sandbox.reset()
-        status = sandbox.marshal(lambda: self.do_build(code))
+        status = await sandbox.marshal(lambda: self.do_build(code))
         if status:
             return status, None
         package_dir = mkdtemp(prefix='jd4.package.')
@@ -96,26 +97,29 @@ class Interpreter:
             f.write(code)
         return Package(package_dir, self.execute_file, self.execute_args)
 
-if __name__ == '__main__':
-    sandbox = create_sandbox()
+async def main():
+    sandbox = await create_sandbox()
     gcc = Compiler('/usr/bin/gcc', ['gcc', '-std=c99', '-o', '/io/foo', 'foo.c'],
                    'foo.c', 'foo', ['foo'])
     javac = Compiler('/usr/bin/javac', ['javac', '-d', 'io', 'Program.java'],
                      'Program.java', '/usr/bin/java', ['java', 'Program'])
     python = Interpreter('foo.py', '/usr/bin/python', ['python', 'foo.py'])
-    _, package = gcc.build(sandbox, b"""#include <stdio.h>
-int main(void) {
-    printf("hello c\\n");
-}""")
+    _, package = await gcc.build(sandbox, b"""#include <stdio.h>
+    int main(void) {
+        printf("hello c\\n");
+    }""")
     for i in range(10):
-        package.install(sandbox).execute(sandbox)
-    _, package = javac.build(sandbox, b"""class Program {
-    public static void main(String[] args) {
-        System.out.println("hello java");
-    }
-}""")
+        await package.install(sandbox).execute(sandbox)
+    _, package = await javac.build(sandbox, b"""class Program {
+        public static void main(String[] args) {
+            System.out.println("hello java");
+        }
+    }""")
     for i in range(10):
-        package.install(sandbox).execute(sandbox)
+        await package.install(sandbox).execute(sandbox)
     package = python.build(b"print 'hello python'\n")
     for i in range(10):
-        package.install(sandbox).execute(sandbox)
+        await package.install(sandbox).execute(sandbox)
+
+if __name__ == '__main__':
+    get_event_loop().run_until_complete(main())

@@ -1,11 +1,9 @@
-import asyncio
 import csv
-from concurrent.futures import ThreadPoolExecutor
+from asyncio import gather, get_event_loop, StreamReader, StreamReaderProtocol
 from functools import partial
 from io import TextIOWrapper
 from itertools import islice, zip_longest
-from os import mkfifo, path
-from signal import SIGKILL
+from os import fdopen, mkfifo, open as os_open, path, O_RDONLY, O_NONBLOCK
 from shutil import copyfileobj
 from zipfile import ZipFile
 
@@ -35,9 +33,10 @@ def compare_file(fa, fb):
     return all(x == y for x, y in zip_longest(a, b))
 
 async def read_pipe(file, size):
-    reader = asyncio.StreamReader()
-    protocol = asyncio.StreamReaderProtocol(reader)
-    await asyncio.get_event_loop().connect_read_pipe(lambda: protocol, open(file, 'rb'))
+    loop = get_event_loop()
+    reader = StreamReader()
+    protocol = StreamReaderProtocol(reader)
+    await loop.connect_read_pipe(lambda: protocol, fdopen(os_open(file, O_RDONLY | O_NONBLOCK)))
     return await reader.read(size)
 
 class LegacyCase:
@@ -49,7 +48,7 @@ class LegacyCase:
         self.score = score
 
     async def judge(self, sandbox, package):
-        loop = asyncio.get_event_loop()
+        loop = get_event_loop()
         executable = package.install(sandbox)
         stdin_file = path.join(sandbox.io_dir, 'stdin')
         mkfifo(stdin_file)
@@ -59,15 +58,17 @@ class LegacyCase:
         mkfifo(stderr_file)
         cgroup = create_cgroup(path.join(sandbox.io_dir, 'cgroup'))
         cgroup.memory_limit_bytes = self.memory_limit_bytes
-        cgroup.listen()
-        _, correct, stderr, _, execute_status = await asyncio.gather(
+
+        _, correct, stderr, _, execute_status = await gather(
             loop.run_in_executor(None, lambda: copyfileobj(self.open_input(), open(stdin_file, 'wb'), CHUNK_SIZE)),
             loop.run_in_executor(None, lambda: compare_file(self.open_output(), open(stdout_file, 'rb'))),
             read_pipe(stderr_file, MAX_STDERR_SIZE),
             cgroup.accept_one(),
-            loop.run_in_executor(None, lambda: executable.execute(
-                sandbox, stdin_file='/io/stdin', stdout_file='/io/stdout', stderr_file='/io/stderr',
-                cgroup_file='/io/cgroup')))
+            executable.execute(sandbox,
+                               stdin_file='/io/stdin',
+                               stdout_file='/io/stdout',
+                               stderr_file='/io/stderr',
+                               cgroup_file='/io/cgroup'))
         cpu_usage_ns = cgroup.cpu_usage_ns
         memory_usage_bytes = cgroup.memory_usage_bytes
         if memory_usage_bytes >= self.memory_limit_bytes:
@@ -95,16 +96,18 @@ def read_legacy_cases(file):
                          int(float(mem_kb_str) * 1024),
                          float(score_str))
 
-if __name__ == '__main__':
-    loop = asyncio.get_event_loop()
-    sandbox = create_sandbox()
+async def main():
+    sandbox = await create_sandbox()
     gcc = Compiler('/usr/bin/gcc', ['gcc', '-std=c99', '-o', '/io/foo', 'foo.c'],
                    'foo.c', 'foo', ['foo'])
-    _, package = gcc.build(sandbox, b"""#include <stdio.h>
-int main(void) {
-    int a, b;
-    scanf("%d%d", &a, &b);
-    printf("%d\\n", a + b);
-}""")
+    _, package = await gcc.build(sandbox, b"""#include <stdio.h>
+    int main(void) {
+        int a, b;
+        scanf("%d%d", &a, &b);
+        printf("%d\\n", a + b);
+    }""")
     for case in read_legacy_cases('examples/P1000.zip'):
-        print(loop.run_until_complete(case.judge(sandbox, package)))
+        print(await case.judge(sandbox, package))
+
+if __name__ == '__main__':
+    get_event_loop().run_until_complete(main())

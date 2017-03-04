@@ -31,19 +31,19 @@ class CGroup(object):
         delete_cgroup(self.cpuacct_cgroup_dir)
         delete_cgroup(self.memory_cgroup_dir)
 
-    def listen(self):
-        self.sock = socket(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK)
-        self.sock.bind(self.socket_path)
-        self.sock.listen()
-
     async def accept_one(self):
         loop = asyncio.get_event_loop()
-        accept_sock, _ = await loop.sock_accept(self.sock)
+        listen_sock = socket(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK)
+        listen_sock.bind(self.socket_path)
+        listen_sock.listen()
+        accept_sock, _ = await loop.sock_accept(listen_sock)
+        listen_sock.close()
         pid = accept_sock.getsockopt(SOL_SOCKET, SO_PEERCRED)
         with open(path.join(self.cpuacct_cgroup_dir, 'tasks'), 'w') as f:
             f.write(str(pid))
         with open(path.join(self.memory_cgroup_dir, 'tasks'), 'w') as f:
             f.write(str(pid))
+        accept_sock.close()
 
     @property
     def cpu_usage_ns(self):
