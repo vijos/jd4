@@ -3,7 +3,7 @@ from asyncio import gather, get_event_loop, wait_for, Event, StreamReader, Strea
 from functools import partial
 from io import TextIOWrapper
 from itertools import islice, zip_longest
-from os import fdopen, mkfifo, open as os_open, path, O_RDONLY, O_NONBLOCK
+from os import cpu_count, fdopen, mkfifo, open as os_open, path, O_RDONLY, O_NONBLOCK
 from shutil import copyfileobj
 from zipfile import ZipFile
 
@@ -16,7 +16,7 @@ from jd4.sandbox import create_sandbox
 
 CHUNK_SIZE = 32768
 MAX_STDERR_SIZE = 8192
-WAIT_JITTER_NS = 10000000
+WAIT_JITTER_NS = 5000000
 
 def chunk_and_strip_lines(f):
     prev = b''
@@ -41,25 +41,34 @@ async def read_pipe(file, size):
     await loop.connect_read_pipe(lambda: protocol, fdopen(os_open(file, O_RDONLY | O_NONBLOCK)))
     return await reader.read(size)
 
+def get_idle():
+    with open('/proc/uptime') as uptime:
+        return float(uptime.read().split()[1])
+
 async def accept_and_limit(cgroup, time_limit_ns, memory_limit_bytes):
     loop = get_event_loop()
     cgroup.memory_limit_bytes = memory_limit_bytes
     await cgroup.accept_one()
+    start_idle = get_idle()
     exit_event = Event()
 
     async def limit_task():
         while True:
             cpu_usage_ns = cgroup.cpu_usage_ns
-            time_remain_ns = time_limit_ns - cpu_usage_ns
+            idle_usage_ns = int((get_idle() - start_idle) / cpu_count() * 1e9)
+            time_usage_ns = max(cpu_usage_ns, idle_usage_ns)
+            time_remain_ns = time_limit_ns - time_usage_ns
             if time_remain_ns <= 0:
                 cgroup.kill()
                 break
             try:
-                await wait_for(exit_event.wait(), (time_remain_ns + WAIT_JITTER_NS) / 1000000000)
+                await wait_for(exit_event.wait(), (time_remain_ns + WAIT_JITTER_NS) / 1e9)
                 break
             except TimeoutError:
-                continue
-        return cgroup.cpu_usage_ns, cgroup.memory_usage_bytes
+                pass
+        if time_usage_ns < time_limit_ns:
+            time_usage_ns = cpu_usage_ns
+        return time_usage_ns, cgroup.memory_usage_bytes
 
     return exit_event, loop.create_task(limit_task())
 
