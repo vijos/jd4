@@ -113,8 +113,8 @@ if __name__ == '__main__':
         sandbox = await create_sandbox()
         gcc = Compiler('/usr/bin/gcc', ['gcc', '-std=c99', '-o', '/out/foo', '/in/foo.c'],
                        'foo.c', 'foo', ['foo'])
-        javac = Compiler('/usr/bin/javac', ['javac', '-d', '/out', '/in/Program.java'],
-                         'Program.java', '/usr/bin/java', ['java', 'Program'])
+        javac = Compiler('/usr/bin/javac', ['javac', '-d', '/out', '/in/Main.java'],
+                         'Main.java', '/usr/bin/java', ['java', 'Main'])
         python = Interpreter('foo.py', '/usr/bin/python', ['python', 'foo.py'])
         _, package = await gcc.build(sandbox, b"""#include <stdio.h>
 int main(void) {
@@ -123,7 +123,7 @@ int main(void) {
         for i in range(10):
             executable = await package.install(sandbox)
             await executable.execute(sandbox)
-        _, package = await javac.build(sandbox, b"""class Program {
+        _, package = await javac.build(sandbox, b"""class Main {
     public static void main(String[] args) {
         System.out.println("hello java");
     }
