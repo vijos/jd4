@@ -1,5 +1,5 @@
 import csv
-from asyncio import gather, get_event_loop, wait_for, Event, StreamReader, StreamReaderProtocol, TimeoutError
+from asyncio import gather, get_event_loop, sleep, wait_for, Event, StreamReader, StreamReaderProtocol, TimeoutError
 from functools import partial
 from io import TextIOWrapper
 from itertools import islice, zip_longest
@@ -13,6 +13,7 @@ from jd4.judge import STATUS_ACCEPTED, STATUS_WRONG_ANSWER, STATUS_RUNTIME_ERROR
                       STATUS_TIME_LIMIT_EXCEEDED, STATUS_MEMORY_LIMIT_EXCEEDED
 from jd4.logging import init_logging, logger
 from jd4.sandbox import create_sandbox
+from jd4.util import read_text_file
 
 CHUNK_SIZE = 32768
 MAX_STDERR_SIZE = 8192
@@ -42,12 +43,12 @@ async def read_pipe(file, size):
     return await reader.read(size)
 
 def get_idle():
-    with open('/proc/uptime') as uptime:
-        return float(uptime.read().split()[1])
+    return float(read_text_file('/proc/uptime').split()[1])
 
-async def accept_and_limit(cgroup, time_limit_ns, memory_limit_bytes):
+async def accept_and_limit(cgroup, time_limit_ns, memory_limit_bytes, process_limit):
     loop = get_event_loop()
     cgroup.memory_limit_bytes = memory_limit_bytes
+    cgroup.pids_max = process_limit
     await cgroup.accept_one()
     start_idle = get_idle()
     exit_event = Event()
@@ -59,13 +60,14 @@ async def accept_and_limit(cgroup, time_limit_ns, memory_limit_bytes):
             time_usage_ns = max(cpu_usage_ns, idle_usage_ns)
             time_remain_ns = time_limit_ns - time_usage_ns
             if time_remain_ns <= 0:
-                cgroup.kill()
                 break
             try:
                 await wait_for(exit_event.wait(), (time_remain_ns + WAIT_JITTER_NS) / 1e9)
                 break
             except TimeoutError:
                 pass
+        while cgroup.kill():
+            await sleep(.001)
         if time_usage_ns < time_limit_ns:
             time_usage_ns = cpu_usage_ns
         return time_usage_ns, cgroup.memory_usage_bytes
@@ -83,23 +85,23 @@ class LegacyCase:
     async def judge(self, sandbox, package):
         loop = get_event_loop()
         executable = await package.install(sandbox)
-        stdin_file = path.join(sandbox.io_dir, 'stdin')
+        stdin_file = path.join(sandbox.in_dir, 'stdin')
         mkfifo(stdin_file)
-        stdout_file = path.join(sandbox.io_dir, 'stdout')
+        stdout_file = path.join(sandbox.in_dir, 'stdout')
         mkfifo(stdout_file)
-        stderr_file = path.join(sandbox.io_dir, 'stderr')
+        stderr_file = path.join(sandbox.in_dir, 'stderr')
         mkfifo(stderr_file)
-        cgroup = CGroup(path.join(sandbox.io_dir, 'cgroup'))
+        cgroup = CGroup(path.join(sandbox.in_dir, 'cgroup'))
         _, correct, stderr, execute_status, (exit_event, usage_future) = await gather(
             loop.run_in_executor(None, lambda: copyfileobj(self.open_input(), open(stdin_file, 'wb'), CHUNK_SIZE)),
             loop.run_in_executor(None, lambda: compare_file(self.open_output(), open(stdout_file, 'rb'))),
             read_pipe(stderr_file, MAX_STDERR_SIZE),
             executable.execute(sandbox,
-                               stdin_file='/io/stdin',
-                               stdout_file='/io/stdout',
-                               stderr_file='/io/stderr',
-                               cgroup_file='/io/cgroup'),
-            accept_and_limit(cgroup, self.time_limit_ns, self.memory_limit_bytes))
+                               stdin_file='/in/stdin',
+                               stdout_file='/in/stdout',
+                               stderr_file='/in/stderr',
+                               cgroup_file='/in/cgroup'),
+            accept_and_limit(cgroup, self.time_limit_ns, self.memory_limit_bytes, 1))
         exit_event.set()
         time_usage_ns, memory_usage_bytes = await usage_future
         if memory_usage_bytes >= self.memory_limit_bytes:
@@ -133,7 +135,7 @@ if __name__ == '__main__':
     async def main():
         try_init_cgroup()
         sandbox = await create_sandbox()
-        gcc = Compiler('/usr/bin/gcc', ['gcc', '-std=c99', '-o', '/io/foo', 'foo.c'],
+        gcc = Compiler('/usr/bin/gcc', ['gcc', '-std=c99', '-o', '/out/foo', '/in/foo.c'],
                        'foo.c', 'foo', ['foo'])
         _, package = await gcc.build(sandbox, b"""#include <stdio.h>
 int main(void) {
