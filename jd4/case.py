@@ -18,6 +18,7 @@ from jd4.util import read_text_file
 CHUNK_SIZE = 32768
 MAX_STDERR_SIZE = 8192
 WAIT_JITTER_NS = 5000000
+PROCESS_LIMIT = 32
 
 def chunk_and_strip_lines(f):
     prev = b''
@@ -101,7 +102,7 @@ class LegacyCase:
                                stdout_file='/in/stdout',
                                stderr_file='/in/stderr',
                                cgroup_file='/in/cgroup'),
-            accept_and_limit(cgroup, self.time_limit_ns, self.memory_limit_bytes, 1))
+            accept_and_limit(cgroup, self.time_limit_ns, self.memory_limit_bytes, PROCESS_LIMIT))
         exit_event.set()
         time_usage_ns, memory_usage_bytes = await usage_future
         if memory_usage_bytes >= self.memory_limit_bytes:
