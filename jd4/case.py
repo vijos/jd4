@@ -40,8 +40,11 @@ async def read_pipe(file, size):
     loop = get_event_loop()
     reader = StreamReader()
     protocol = StreamReaderProtocol(reader)
-    await loop.connect_read_pipe(lambda: protocol, fdopen(os_open(file, O_RDONLY | O_NONBLOCK)))
-    return await reader.read(size)
+    transport, _ = await loop.connect_read_pipe(
+        lambda: protocol, fdopen(os_open(file, O_RDONLY | O_NONBLOCK)))
+    data = await reader.read(size)
+    transport.close()
+    return data
 
 def get_idle():
     return float(read_text_file('/proc/uptime').split()[1])
