@@ -8,7 +8,7 @@ from sys import __stdin__
 from tempfile import mkdtemp
 from time import sleep
 
-from jd4.logging import logger
+from jd4.log import logger
 from jd4.util import read_text_file, write_text_file
 
 CPUACCT_CGROUP_ROOT = '/sys/fs/cgroup/cpuacct/jd4'
@@ -38,7 +38,7 @@ def try_init_cgroup():
         else:
             logger.error('Cgroup not initialized')
 
-class CGroup(object):
+class CGroup:
     def __init__(self, socket_path):
         self.cpuacct_cgroup_dir = mkdtemp(prefix='', dir=CPUACCT_CGROUP_ROOT)
         self.memory_cgroup_dir = mkdtemp(prefix='', dir=MEMORY_CGROUP_ROOT)
