@@ -111,6 +111,8 @@ async def create_sandbox(*, fork_twice=True, mount_proc=True):
     bind_mount('/usr/bin', path.join(root_dir, 'usr/bin'))
     bind_mount('/usr/include', path.join(root_dir, 'usr/include'))
     bind_mount('/usr/lib', path.join(root_dir, 'usr/lib'))
+    bind_mount('/usr/lib64', path.join(root_dir, 'usr/lib64'))
+    bind_mount('/usr/libexec', path.join(root_dir, 'usr/libexec'))
     bind_mount(in_dir, path.join(root_dir, 'in'))
     bind_mount(out_dir, path.join(root_dir, 'out'), rdonly=False)
     chdir(root_dir)
@@ -119,7 +121,7 @@ async def create_sandbox(*, fork_twice=True, mount_proc=True):
     umount('old_root', MNT_DETACH)
     rmdir('old_root')
     write_text_file('/etc/passwd', 'icebox:x:1000:1000:icebox:/:/bin/bash\n')
-    mount('tmpfs', '/', 'tmpfs', MS_NOSUID | MS_REMOUNT | MS_RDONLY)
+    bind_mount('/', '/', makedir=False)
 
     # Execute pickles.
     socket_file = child_socket.makefile('rwb')
