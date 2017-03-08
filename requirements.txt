@@ -3,3 +3,4 @@ butter
 cloudpickle
 colorlog
 appdirs
+PyYAML
