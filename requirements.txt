@@ -1,3 +1,5 @@
+aiohttp
 butter
 cloudpickle
 colorlog
+appdirs

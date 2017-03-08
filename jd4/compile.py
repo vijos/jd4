@@ -111,11 +111,19 @@ class Interpreter:
 if __name__ == '__main__':
     async def main():
         sandbox = await create_sandbox()
+        fpc = Compiler('/usr/bin/fpc', ['gcc', '-o/out/foo', '/in/foo.pas'],
+                       'foo.pas', 'foo', ['foo'])
         gcc = Compiler('/usr/bin/gcc', ['gcc', '-std=c99', '-o', '/out/foo', '/in/foo.c'],
                        'foo.c', 'foo', ['foo'])
         javac = Compiler('/usr/bin/javac', ['javac', '-d', '/out', '/in/Main.java'],
                          'Main.java', '/usr/bin/java', ['java', 'Main'])
         python = Interpreter('foo.py', '/usr/bin/python', ['python', 'foo.py'])
+        _, package = await fpc.build(sandbox, b"""begin
+    writeln('hello pascal');
+end.""")
+        for i in range(10):
+            executable = await package.install(sandbox)
+            await executable.execute(sandbox)
         _, package = await gcc.build(sandbox, b"""#include <stdio.h>
 int main(void) {
     printf("hello c\\n");

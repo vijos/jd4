@@ -9,6 +9,7 @@ from struct import pack, unpack
 from sys import exit
 from tempfile import mkdtemp
 
+from jd4.log import logger
 from jd4.util import write_text_file
 
 MNT_DETACH = 2
@@ -142,7 +143,7 @@ async def create_sandbox(*, fork_twice=True, mount_proc=True):
 if __name__ == '__main__':
     async def main():
         sandbox = await create_sandbox()
-        print('sandbox_dir: {}'.format(sandbox.sandbox_dir))
-        print('return value: {}'.format(await sandbox.backdoor()))
+        logger.info('sandbox_dir: %s', sandbox.sandbox_dir)
+        logger.info('return value: %d', await sandbox.backdoor())
 
     get_event_loop().run_until_complete(main())
