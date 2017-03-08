@@ -1,4 +1,5 @@
 import json
+import yaml
 from aiohttp import ClientSession, CookieJar
 from asyncio import get_event_loop, sleep
 from appdirs import user_cache_dir, user_config_dir
@@ -74,6 +75,7 @@ class VJ4Session(ClientSession):
         await self.call('judge/noop')
 
     async def login(self, uname, password):
+        logger.info('Login')
         await self.call('login', uname=uname, password=password)
 
     async def login_if_needed(self, uname, password):
@@ -82,7 +84,6 @@ class VJ4Session(ClientSession):
             logger.info('Session is valid')
         except VJ4Error as e:
             if e.name == 'PrivilegeError':
-                logger.info('Login')
                 await self.login(uname, password)
             else:
                 raise
@@ -112,15 +113,16 @@ class VJ4Session(ClientSession):
 if __name__ == '__main__':
     makedirs(CACHE_DIR, exist_ok=True)
     makedirs(CONFIG_DIR, exist_ok=True)
+    with open(path.join(CONFIG_DIR, 'config')) as config_file:
+        config = yaml.load(config_file) or {}
 
     async def main():
         async with VJ4Session() as session:
             while True:
                 try:
-                    # TODO(iceboy): login_if_needed
+                    await session.login_if_needed(config['uname'], config['password'])
                     # TODO(iceboy): download data
-                    # TODO(iceboy): judge_consume
-                    pass
+                    await session.judge_consume()
                 except Exception as e:
                     logger.exception(e)
                 logger.info('Retrying after %d seconds', RETRY_DELAY_SEC)
