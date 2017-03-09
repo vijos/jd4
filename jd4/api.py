@@ -1,16 +1,13 @@
 import json
 from aiohttp import ClientSession
-from asyncio import get_event_loop, sleep
-from appdirs import user_cache_dir
-from os import makedirs, path
+from asyncio import get_event_loop
+from os import path
 from urllib.parse import urljoin
 
-from jd4.config import config, cookie_jar, save_config, save_cookies
+from jd4.config import cookie_jar, save_cookies
 from jd4.log import logger
 
-CACHE_DIR = user_cache_dir('jd4')
 SERVER_URL = 'https://vijos.org'
-RETRY_DELAY_SEC = 30
 CHUNK_SIZE = 32768
 
 def full_url(*parts):
@@ -33,11 +30,14 @@ async def json_response_to_dict(response):
     return response_dict
 
 class VJ4Session(ClientSession):
+    def __init__(self):
+        super().__init__(cookie_jar=cookie_jar)
+
     async def get_json(self, relative_url, **kwargs):
         async with super().get(full_url(relative_url),
-                                headers={'accept': 'application/json'},
-                                allow_redirects=False,
-                                params=kwargs) as response:
+                               headers={'accept': 'application/json'},
+                               allow_redirects=False,
+                               params=kwargs) as response:
             return await json_response_to_dict(response)
 
     async def post_json(self, relative_url, **kwargs):
@@ -68,6 +68,7 @@ class VJ4Session(ClientSession):
         except VJ4Error as e:
             if e.name == 'PrivilegeError':
                 await self.login(uname, password)
+                await save_cookies()
             else:
                 raise
 
@@ -95,21 +96,3 @@ class VJ4Session(ClientSession):
                     if not buffer:
                         break
                     await loop.run_in_executor(None, save_file.write, buffer)
-
-if __name__ == '__main__':
-    makedirs(CACHE_DIR, exist_ok=True)
-
-    async def main():
-        async with VJ4Session(cookie_jar=cookie_jar) as session:
-            while True:
-                try:
-                    await session.login_if_needed(config['uname'], config['password'])
-                    await save_cookies()
-                    # TODO(iceboy): download data
-                    await session.judge_consume()
-                except Exception as e:
-                    logger.exception(e)
-                logger.info('Retrying after %d seconds', RETRY_DELAY_SEC)
-                await sleep(RETRY_DELAY_SEC)
-
-    get_event_loop().run_until_complete(main())
