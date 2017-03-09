@@ -3,4 +3,4 @@ butter
 cloudpickle
 colorlog
 appdirs
-PyYAML
+ruamel.yaml
