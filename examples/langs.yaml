@@ -1,0 +1,33 @@
+c:
+    type: compiler
+    compiler_file: /usr/bin/gcc
+    compiler_args: gcc -std=c99 -o /out/foo /in/foo.c
+    code_file: foo.c
+    execute_file: foo
+    execute_args: foo
+cc:
+    type: compiler
+    compiler_file: /usr/bin/g++
+    compiler_args: g++ -std=c99 -o /out/foo /in/foo.cc
+    code_file: foo.cc
+    execute_file: foo
+    execute_args: foo
+pas:
+    type: compiler
+    compiler_file: /usr/bin/fpc
+    compiler_args: fpc -o/out/foo /in/foo.pas
+    code_file: foo.pas
+    execute_file: foo
+    execute_args: foo
+java:
+    type: compiler
+    compiler_file: /usr/bin/javac
+    compiler_args: javac -d /out /in/Main.java
+    code_file: foo.java
+    execute_file: /usr/bin/java
+    execute_args: java Main
+py:
+    type: interpreter
+    code_file: foo.py
+    execute_file: /usr/bin/python
+    execute_args: python foo.py

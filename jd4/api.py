@@ -51,7 +51,8 @@ class VJ4Session(ClientSession):
         async with self.ws_connect(full_url('judge/consume-conn/websocket')) as ws:
             logger.info('Connected')
             async for msg in ws:
-                logger.info(json.loads(msg.data))
+                request = json.loads(msg.data)
+                await self.do_judge(request, ws)
             logger.warning('Connection lost with code %d', ws.close_code)
 
     async def judge_noop(self):

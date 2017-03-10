@@ -6,7 +6,7 @@ from os import path
 from ruamel import yaml
 
 _CONFIG_DIR = user_config_dir('jd4')
-_CONFIG_FILE = path.join(_CONFIG_DIR, 'config')
+_CONFIG_FILE = path.join(_CONFIG_DIR, 'config.yaml')
 _COOKIES_FILE = path.join(_CONFIG_DIR, 'cookies')
 
 def _load_config():

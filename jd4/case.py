@@ -110,15 +110,20 @@ class LegacyCase:
         time_usage_ns, memory_usage_bytes = await usage_future
         if memory_usage_bytes >= self.memory_limit_bytes:
             status = STATUS_MEMORY_LIMIT_EXCEEDED
+            score = 0
         elif time_usage_ns >= self.time_limit_ns:
             status = STATUS_TIME_LIMIT_EXCEEDED
+            score = 0
         elif execute_status:
             status = STATUS_RUNTIME_ERROR
+            score = 0
         elif not correct:
             status = STATUS_WRONG_ANSWER
+            score = 0
         else:
             status = STATUS_ACCEPTED
-        return status, time_usage_ns, memory_usage_bytes, stderr
+            score = self.score
+        return status, score, time_usage_ns, memory_usage_bytes, stderr
 
 def read_legacy_cases(file):
     zip_file = ZipFile(file)

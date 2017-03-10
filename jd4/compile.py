@@ -111,7 +111,7 @@ class Interpreter:
 if __name__ == '__main__':
     async def main():
         sandbox = await create_sandbox()
-        fpc = Compiler('/usr/bin/fpc', ['gcc', '-o/out/foo', '/in/foo.pas'],
+        fpc = Compiler('/usr/bin/fpc', ['fpc', '-o/out/foo', '/in/foo.pas'],
                        'foo.pas', 'foo', ['foo'])
         gcc = Compiler('/usr/bin/gcc', ['gcc', '-std=c99', '-o', '/out/foo', '/in/foo.c'],
                        'foo.c', 'foo', ['foo'])
