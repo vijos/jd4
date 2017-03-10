@@ -25,8 +25,6 @@ class DaemonSession(VJ4Session):
         if not build:
             # TODO(iceboy)
             raise RuntimeError('lang ' + request['lang'] + ' not found')
-        if request['pid'] != '1000':
-            raise RuntimeError('not a+b')
         file, (build_status, package) = await gather(
             cache_open(self, request['domain_id'], request['pid']),
             build(sandbox, request['code'].encode()))
@@ -57,7 +55,7 @@ class DaemonSession(VJ4Session):
                       'tag': tag,
                       'status': total_status,
                       'score': total_score,
-                      'time_ms': total_memory_usage_bytes // 1000000,
+                      'time_ms': total_time_usage_ns // 1000000,
                       'memory_kb': total_memory_usage_bytes // 1024})
         file.close()
 
