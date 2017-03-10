@@ -45,8 +45,8 @@ class DaemonSession(VJ4Session):
                           'case': {
                               'status': status,
                               'score': score,
-                              'time_ms': int(time_usage_ns / 1000000),
-                              'memory_kb': int(memory_usage_bytes / 1024),
+                              'time_ms': time_usage_ns // 1000000,
+                              'memory_kb': memory_usage_bytes // 1024,
                               'judge_text': stderr.decode(),
                           }})
             total_status = max(total_status, status)
@@ -57,8 +57,8 @@ class DaemonSession(VJ4Session):
                       'tag': tag,
                       'status': total_status,
                       'score': total_score,
-                      'time_ms': int(total_memory_usage_bytes / 1000000),
-                      'memory_kb': int(total_memory_usage_bytes / 1024)})
+                      'time_ms': total_memory_usage_bytes // 1000000,
+                      'memory_kb': total_memory_usage_bytes // 1024})
         file.close()
 
 async def daemon():

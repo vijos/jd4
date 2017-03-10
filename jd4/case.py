@@ -135,8 +135,8 @@ def read_legacy_cases(file):
         open_output = partial(zip_file.open, path.join('Output', output))
         yield LegacyCase(open_input, open_output,
                          int(float(time_sec_str) * 1e9),
-                         int(float(mem_kb_str) * 1024),
-                         float(score_str))
+                         int(mem_kb_str) * 1024,
+                         int(score_str))
 
 if __name__ == '__main__':
     async def main():
