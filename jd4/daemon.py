@@ -46,7 +46,8 @@ class DaemonSession(VJ4Session):
                               'time_ms': time_usage_ns // 1000000,
                               'memory_kb': memory_usage_bytes // 1024,
                               'judge_text': stderr.decode(),
-                          }})
+                          },
+                          'progress': (index + 1) / len(cases)})
             total_status = max(total_status, status)
             total_score += score
             total_time_usage_ns += time_usage_ns
