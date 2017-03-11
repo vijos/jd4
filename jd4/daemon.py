@@ -50,6 +50,7 @@ class JudgeHandler:
     async def submission(self):
         domain_id = self.request.pop('domain_id')
         pid = self.request.pop('pid')
+        logger.info('Submission: %s, %s', domain_id, pid)
         cases_file, package = await gather(cache_open(self.session, domain_id, pid), self.build())
         try:
             await self.judge(cases_file, package)
@@ -58,6 +59,7 @@ class JudgeHandler:
 
     async def pretest(self):
         rid = self.request.pop('rid')
+        logger.info('Pretest: %s', rid)
         cases_data, package = await gather(self.session.record_pretest_data(rid), self.build())
         await self.judge(BytesIO(cases_data), package)
 
