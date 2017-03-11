@@ -2,7 +2,8 @@ import cloudpickle
 from asyncio import get_event_loop, open_connection
 from butter.clone import unshare, CLONE_NEWNS, CLONE_NEWUTS, CLONE_NEWIPC, CLONE_NEWUSER, CLONE_NEWPID, CLONE_NEWNET
 from butter.system import mount, pivot_root, umount, MS_BIND, MS_NOSUID, MS_RDONLY, MS_REMOUNT
-from os import chdir, fork, getegid, geteuid, listdir, makedirs, mkdir, path, remove, rmdir, setresgid, setresuid, spawnve, waitpid, P_WAIT, O_NONBLOCK
+from os import chdir, fork, getegid, geteuid, listdir, makedirs, mkdir, path, remove, readlink, rmdir, \
+    setresgid, setresuid, spawnve, symlink, waitpid, P_WAIT
 from shutil import rmtree
 from socket import sethostname, socketpair
 from struct import pack, unpack
@@ -22,6 +23,12 @@ def bind_mount(src, target, *, ignore_missing=True, makedir=True, rdonly=True):
     mount(src, target, '', MS_BIND | MS_NOSUID)
     if rdonly:
         mount(src, target, '', MS_BIND | MS_REMOUNT | MS_RDONLY | MS_NOSUID)
+
+def bind_or_link(src, target):
+    if path.islink(src):
+        symlink(readlink(src), target)
+    else:
+        bind_mount(src, target)
 
 def remove_under(*dirnames):
     for dirname in dirnames:
@@ -105,15 +112,15 @@ async def create_sandbox(*, fork_twice=True, mount_proc=True):
         proc_dir = path.join(root_dir, 'proc')
         mkdir(proc_dir)
         mount('proc', proc_dir, 'proc', MS_NOSUID)
-    bind_mount('/bin', path.join(root_dir, 'bin'))
-    bind_mount('/etc/alternatives', path.join(root_dir, 'etc/alternatives'))
-    bind_mount('/lib', path.join(root_dir, 'lib'))
-    bind_mount('/lib64', path.join(root_dir, 'lib64'))
-    bind_mount('/usr/bin', path.join(root_dir, 'usr/bin'))
-    bind_mount('/usr/include', path.join(root_dir, 'usr/include'))
-    bind_mount('/usr/lib', path.join(root_dir, 'usr/lib'))
-    bind_mount('/usr/lib64', path.join(root_dir, 'usr/lib64'))
-    bind_mount('/usr/libexec', path.join(root_dir, 'usr/libexec'))
+    bind_or_link('/bin', path.join(root_dir, 'bin'))
+    bind_or_link('/etc/alternatives', path.join(root_dir, 'etc/alternatives'))
+    bind_or_link('/lib', path.join(root_dir, 'lib'))
+    bind_or_link('/lib64', path.join(root_dir, 'lib64'))
+    bind_or_link('/usr/bin', path.join(root_dir, 'usr/bin'))
+    bind_or_link('/usr/include', path.join(root_dir, 'usr/include'))
+    bind_or_link('/usr/lib', path.join(root_dir, 'usr/lib'))
+    bind_or_link('/usr/lib64', path.join(root_dir, 'usr/lib64'))
+    bind_or_link('/usr/libexec', path.join(root_dir, 'usr/libexec'))
     bind_mount(in_dir, path.join(root_dir, 'in'))
     bind_mount(out_dir, path.join(root_dir, 'out'), rdonly=False)
     chdir(root_dir)
