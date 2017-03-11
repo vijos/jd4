@@ -1,8 +1,9 @@
 from appdirs import user_cache_dir
-from asyncio import get_event_loop
+from asyncio import get_event_loop, Event
 from os import makedirs, path, unlink
 
 _CACHE_DIR = user_cache_dir('jd4')
+_events = dict()
 
 async def cache_open(session, domain_id, pid):
     domain_dir = path.join(_CACHE_DIR, domain_id)
@@ -14,7 +15,14 @@ async def cache_open(session, domain_id, pid):
             return file
         except FileNotFoundError:
             pass
-        await session.problem_data(domain_id, pid, file_path)
+        event = _events.get((domain_id, pid))
+        if not event:
+            event = Event()
+            _events[(domain_id, pid)] = event
+            await session.problem_data(domain_id, pid, file_path)
+            event.set()
+        else:
+            await event.wait()
 
 async def cache_invalidate(domain_id, pid):
     loop = get_event_loop()

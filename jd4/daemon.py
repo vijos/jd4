@@ -62,7 +62,6 @@ class DaemonSession(VJ4Session):
 
 async def daemon():
     async with DaemonSession() as session:
-        await cache_invalidate('system', '1000')
         while True:
             try:
                 await session.login_if_needed(config['uname'], config['password'])
