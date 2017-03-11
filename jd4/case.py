@@ -19,6 +19,7 @@ CHUNK_SIZE = 32768
 MAX_STDERR_SIZE = 8192
 WAIT_JITTER_NS = 5000000
 PROCESS_LIMIT = 32
+DEFAULT_MEM_KB = 131072
 
 def chunk_and_strip_lines(f):
     prev = b''
@@ -119,13 +120,17 @@ def read_legacy_cases(file):
     zip_file = ZipFile(file)
     config = TextIOWrapper(zip_file.open('Config.ini'))
     num_cases = int(config.readline())
-    for input, output, time_sec_str, score_str, mem_kb_str in \
-        islice(csv.reader(config, delimiter='|'), num_cases):
+    for line in islice(csv.reader(config, delimiter='|'), num_cases):
+        input, output, time_sec_str, score_str = line[:4]
+        try:
+            mem_kb = int(line[4])
+        except (IndexError, ValueError):
+            mem_kb = DEFAULT_MEM_KB
         open_input = partial(zip_file.open, path.join('Input', input))
         open_output = partial(zip_file.open, path.join('Output', output))
         yield LegacyCase(open_input, open_output,
                          int(float(time_sec_str) * 1e9),
-                         int(mem_kb_str) * 1024,
+                         mem_kb * 1024,
                          int(score_str))
 
 if __name__ == '__main__':
