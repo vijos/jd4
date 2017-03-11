@@ -8,7 +8,7 @@ c:
 cc:
     type: compiler
     compiler_file: /usr/bin/g++
-    compiler_args: g++ -std=c99 -o /out/foo /in/foo.cc
+    compiler_args: g++ -std=c++11 -o /out/foo /in/foo.cc
     code_file: foo.cc
     execute_file: foo
     execute_args: foo
