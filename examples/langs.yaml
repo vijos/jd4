@@ -23,7 +23,7 @@ java:
     type: compiler
     compiler_file: /usr/bin/javac
     compiler_args: javac -d /out /in/Main.java
-    code_file: foo.java
+    code_file: Main.java
     execute_file: /usr/bin/java
     execute_args: java Main
 py:
