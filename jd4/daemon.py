@@ -28,17 +28,24 @@ class JudgeHandler:
         self.session = session
         self.request = request
         self.ws = ws
-        self.tag = self.request.pop('tag')
+        self.tag = self.request.pop('tag', None)
 
     async def handle(self):
         try:
-            type = self.request.pop('type')
-            if type == 0:
-                await self.submission()
-            elif type == 1:
-                await self.pretest()
+            event = self.request.pop('event', None)
+            if event:
+                if event == 'problem_data_change':
+                    await self.update_problem_data()
+                else:
+                    raise SystemError('Unknown event: {}'.format(event))
             else:
-                raise SystemError('Unsupported type: {}'.format(type))
+                type = self.request.pop('type')
+                if type == 0:
+                    await self.submission()
+                elif type == 1:
+                    await self.pretest()
+                else:
+                    raise SystemError('Unsupported type: {}'.format(type))
             for key in self.request:
                 logger.warning('Unused key in judge request: %s', key)
         except CompileError:
@@ -46,6 +53,13 @@ class JudgeHandler:
         except Exception as e:
             logger.exception(e)
             self.end(status=STATUS_SYSTEM_ERROR, score=0, time_ms=0, memory_kb=0)
+
+    async def update_problem_data(self):
+        domain_id = self.request.pop('domain_id')
+        pid = str(self.request.pop('pid'))
+        await cache_invalidate(domain_id, pid)
+        logger.debug('Invalidated %s/%s', domain_id, pid)
+        await update_problem_data(self.session)
 
     async def submission(self):
         domain_id = self.request.pop('domain_id')
@@ -107,7 +121,7 @@ async def update_problem_data(session):
     ''' Invalidate all expired data. '''
     logger.info('Update problem data')
     result = await session.judge_datalist(try_get_int('last_update_at'))
-    for pid in result['list']:
+    for pid in result['pids']:
       await cache_invalidate(pid['domain_id'], pid['pid'])
       logger.debug('Invalidated %s/%s', pid['domain_id'], str(pid['pid']))
     config['last_update_at'] = str(result['time'])
