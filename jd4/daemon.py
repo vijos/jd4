@@ -5,7 +5,7 @@ from jd4.api import VJ4Session
 from jd4.case import read_legacy_cases
 from jd4.cache import cache_open, cache_invalidate
 from jd4.cgroup import try_init_cgroup
-from jd4.config import config
+from jd4.config import config, save_config, try_get_int
 from jd4.langs import langs
 from jd4.log import logger
 from jd4.sandbox import create_sandbox
@@ -102,11 +102,24 @@ class JudgeHandler:
     def end(self, **kwargs):
         self.ws.send_json({'key': 'end', 'tag': self.tag, **kwargs})
 
+
+async def update_problem_data(session):
+    ''' Invalidate all expired data. '''
+    logger.info('Update problem data')
+    result = await session.judge_datalist(try_get_int('last_update_at'))
+    for pid in result['list']:
+      await cache_invalidate(pid['domain_id'], pid['pid'])
+      logger.debug('Invalidated %s/%s', pid['domain_id'], str(pid['pid']))
+    config['last_update_at'] = str(result['time'])
+    await save_config()
+
+
 async def daemon():
-    async with VJ4Session() as session:
+    async with VJ4Session(config['server']) as session:
         while True:
             try:
                 await session.login_if_needed(config['uname'], config['password'])
+                await update_problem_data(session)
                 await session.judge_consume(JudgeHandler)
             except Exception as e:
                 logger.exception(e)

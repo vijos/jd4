@@ -38,6 +38,14 @@ _save_cookie_function = partial(cookie_jar.save, _COOKIES_FILE)
 async def save_cookies():
     await get_event_loop().run_in_executor(None, _save_cookie_function)
 
+def try_get_int(key, default=0):
+  value = config.get(key, default)
+  try:
+    return int(value)
+  except ValueError:
+    return default
+
+
 if __name__ == '__main__':
     print(config)
     print(list(cookie_jar))
