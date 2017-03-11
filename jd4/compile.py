@@ -126,6 +126,8 @@ if __name__ == '__main__':
                        'foo.pas', 'foo', ['foo'])
         gcc = Compiler('/usr/bin/gcc', ['gcc', '-std=c99', '-o', '/out/foo', '/in/foo.c'],
                        'foo.c', 'foo', ['foo'])
+        gxx = Compiler('/usr/bin/g++', ['g++', '-std=c++11', '-o', '/out/foo', '/in/foo.cc'],
+                       'foo.cc', 'foo', ['foo'])
         javac = Compiler('/usr/bin/javac', ['javac', '-d', '/out', '/in/Main.java'],
                          'Main.java', '/usr/bin/java', ['java', 'Main'])
         python = Interpreter('foo.py', '/usr/bin/python', ['python', 'foo.py'])
@@ -141,6 +143,14 @@ int main(void) {
     printf("hello c\\n");
 }""")
         package, _ = await gcc.build(sandbox)
+        for i in range(10):
+            executable = await package.install(sandbox)
+            await executable.execute(sandbox)
+        await gxx.prepare(sandbox, b"""#include <iostream>
+int main() {
+    std::cout << "hello cxx\\n";
+}""")
+        package, _ = await gxx.build(sandbox)
         for i in range(10):
             executable = await package.install(sandbox)
             await executable.execute(sandbox)
