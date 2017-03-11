@@ -148,7 +148,7 @@ int main(void) {
     printf("%d\\n", a + b);
 }""")
         package, _ = await gcc.build(sandbox)
-        for case in read_legacy_cases('examples/P1000.zip'):
+        for case in read_legacy_cases('examples/1000.zip'):
             logger.info(await case.judge(sandbox, package))
 
     get_event_loop().run_until_complete(main())
