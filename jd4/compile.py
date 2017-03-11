@@ -28,7 +28,7 @@ class Executable:
         self.execute_args = execute_args
 
     async def execute(self, sandbox, *,
-                stdin_file=None, stdout_file=None, stderr_file=None, cgroup_file=None):
+                      stdin_file=None, stdout_file=None, stderr_file=None, cgroup_file=None):
         return await sandbox.marshal(lambda: self.do_execute(
             stdin_file, stdout_file, stderr_file, cgroup_file))
 
@@ -73,26 +73,37 @@ class Compiler:
         self.execute_file = execute_file
         self.execute_args = execute_args
 
-    async def build(self, sandbox, code):
+    async def prepare(self, sandbox, code):
         loop = get_event_loop()
         await sandbox.reset()
-        write_binary_file(path.join(sandbox.in_dir, self.code_file), code)
-        status = await sandbox.marshal(lambda: self.do_build())
+        await loop.run_in_executor(None, write_binary_file, path.join(sandbox.in_dir, self.code_file), code)
+
+    async def build(self, sandbox, *,
+                    stdin_file=None, stdout_file=None, stderr_file=None, cgroup_file=None):
+        loop = get_event_loop()
+        status = await sandbox.marshal(lambda: self.do_build(
+            stdin_file, stdout_file, stderr_file, cgroup_file))
         if status:
-            return status, None
+            return None, status
         package_dir = mkdtemp(prefix='jd4.package.')
         await loop.run_in_executor(None,
                                    copytree,
                                    sandbox.out_dir,
                                    path.join(package_dir, 'package'))
-        return 0, Package(package_dir, self.execute_file, self.execute_args)
+        return Package(package_dir, self.execute_file, self.execute_args), 0
 
-    def do_build(self):
+    def do_build(self, stdin_file, stdout_file, stderr_file, cgroup_file):
         pid = fork()
         if not pid:
             chdir('/out')
-            # TODO(iceboy): Time/memory/process limit.
-            # TODO(iceboy): Read compiler output.
+            if stdin_file:
+                dup2(os_open(stdin_file, O_RDONLY), STDIN_FILENO)
+            if stdout_file:
+                dup2(os_open(stdout_file, O_WRONLY), STDOUT_FILENO)
+            if stderr_file:
+                dup2(os_open(stderr_file, O_WRONLY), STDERR_FILENO)
+            if cgroup_file:
+                enter_cgroup(cgroup_file)
             execve(self.compiler_file, self.compiler_args, SPAWN_ENV)
         return wait_and_reap_zombies(pid)
 
@@ -118,24 +129,27 @@ if __name__ == '__main__':
         javac = Compiler('/usr/bin/javac', ['javac', '-d', '/out', '/in/Main.java'],
                          'Main.java', '/usr/bin/java', ['java', 'Main'])
         python = Interpreter('foo.py', '/usr/bin/python', ['python', 'foo.py'])
-        _, package = await fpc.build(sandbox, b"""begin
+        await fpc.prepare(sandbox, b"""begin
     writeln('hello pascal');
 end.""")
+        package, _ = await fpc.build(sandbox)
         for i in range(10):
             executable = await package.install(sandbox)
             await executable.execute(sandbox)
-        _, package = await gcc.build(sandbox, b"""#include <stdio.h>
+        await gcc.prepare(sandbox, b"""#include <stdio.h>
 int main(void) {
     printf("hello c\\n");
 }""")
+        package, _ = await gcc.build(sandbox)
         for i in range(10):
             executable = await package.install(sandbox)
             await executable.execute(sandbox)
-        _, package = await javac.build(sandbox, b"""class Main {
+        await javac.prepare(sandbox, b"""class Main {
     public static void main(String[] args) {
         System.out.println("hello java");
     }
 }""")
+        package, _ = await javac.build(sandbox)
         for i in range(10):
             executable = await package.install(sandbox)
             await executable.execute(sandbox)

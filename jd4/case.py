@@ -1,19 +1,19 @@
 import csv
-from asyncio import gather, get_event_loop, sleep, wait_for, Event, StreamReader, StreamReaderProtocol, TimeoutError
+from asyncio import gather, get_event_loop, sleep, wait_for, Event, TimeoutError
 from functools import partial
 from io import TextIOWrapper
 from itertools import islice, zip_longest
-from os import cpu_count, fdopen, mkfifo, open as os_open, path, O_RDONLY, O_NONBLOCK
+from os import cpu_count, mkfifo, path
 from shutil import copyfileobj
 from zipfile import ZipFile
 
 from jd4.cgroup import CGroup, try_init_cgroup
 from jd4.compile import Compiler
-from jd4.judge import STATUS_ACCEPTED, STATUS_WRONG_ANSWER, STATUS_RUNTIME_ERROR, \
+from jd4.status import STATUS_ACCEPTED, STATUS_WRONG_ANSWER, STATUS_RUNTIME_ERROR, \
                       STATUS_TIME_LIMIT_EXCEEDED, STATUS_MEMORY_LIMIT_EXCEEDED
 from jd4.log import logger
 from jd4.sandbox import create_sandbox
-from jd4.util import read_text_file
+from jd4.util import read_pipe, read_text_file
 
 CHUNK_SIZE = 32768
 MAX_STDERR_SIZE = 8192
@@ -35,16 +35,6 @@ def compare_file(fa, fb):
     a = chunk_and_strip_lines(fa)
     b = chunk_and_strip_lines(fb)
     return all(x == y for x, y in zip_longest(a, b))
-
-async def read_pipe(file, size):
-    loop = get_event_loop()
-    reader = StreamReader()
-    protocol = StreamReaderProtocol(reader)
-    transport, _ = await loop.connect_read_pipe(
-        lambda: protocol, fdopen(os_open(file, O_RDONLY | O_NONBLOCK)))
-    data = await reader.read(size)
-    transport.close()
-    return data
 
 def get_idle():
     return float(read_text_file('/proc/uptime').split()[1])
@@ -144,12 +134,13 @@ if __name__ == '__main__':
         sandbox = await create_sandbox()
         gcc = Compiler('/usr/bin/gcc', ['gcc', '-std=c99', '-o', '/out/foo', '/in/foo.c'],
                        'foo.c', 'foo', ['foo'])
-        _, package = await gcc.build(sandbox, b"""#include <stdio.h>
+        await gcc.prepare(sandbox, b"""#include <stdio.h>
 int main(void) {
     int a, b;
     scanf("%d%d", &a, &b);
     printf("%d\\n", a + b);
 }""")
+        package, _ = await gcc.build(sandbox)
         for case in read_legacy_cases('examples/P1000.zip'):
             logger.info(await case.judge(sandbox, package))
 
