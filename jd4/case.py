@@ -119,7 +119,8 @@ class LegacyCase:
 def read_legacy_cases(file):
     zip_file = ZipFile(file)
     canonical_dict = dict((name.lower(), name) for name in zip_file.namelist())
-    config = TextIOWrapper(zip_file.open(canonical_dict['config.ini']))
+    config = TextIOWrapper(zip_file.open(canonical_dict['config.ini']),
+                           encoding='utf-8', errors='replace')
     num_cases = int(config.readline())
     for line in islice(csv.reader(config, delimiter='|'), num_cases):
         input, output, time_sec_str, score_str = line[:4]

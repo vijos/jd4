@@ -91,7 +91,8 @@ class JudgeHandler:
                             'score': score,
                             'time_ms': time_usage_ns // 1000000,
                             'memory_kb': memory_usage_bytes // 1024,
-                            'judge_text': stderr.decode()}, progress=(index + 1) / len(cases))
+                            'judge_text': stderr.decode(encoding='utf-8', errors='replace')},
+                      progress=(index + 1) / len(cases))
             logger.debug('Case %d: %d, %g, %g, %g, %s',
                          index, status, score, time_usage_ns / 1000000, memory_usage_bytes / 1024, stderr)
             total_status = max(total_status, status)
