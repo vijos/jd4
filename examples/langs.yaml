@@ -1,21 +1,21 @@
 c:
     type: compiler
     compiler_file: /usr/bin/gcc
-    compiler_args: gcc -std=c99 -o /out/foo /in/foo.c
+    compiler_args: gcc -O2 -std=c99 -o /out/foo /in/foo.c
     code_file: foo.c
     execute_file: foo
     execute_args: foo
 cc:
     type: compiler
     compiler_file: /usr/bin/g++
-    compiler_args: g++ -std=c++11 -o /out/foo /in/foo.cc
+    compiler_args: g++ -O2 -std=c++11 -o /out/foo /in/foo.cc
     code_file: foo.cc
     execute_file: foo
     execute_args: foo
 pas:
     type: compiler
     compiler_file: /usr/bin/fpc
-    compiler_args: fpc -o/out/foo /in/foo.pas
+    compiler_args: fpc -O2 -o/out/foo /in/foo.pas
     code_file: foo.pas
     execute_file: foo
     execute_args: foo
