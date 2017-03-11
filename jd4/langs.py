@@ -26,6 +26,9 @@ async def _interpreter_build(interpreter, _, code):
     return interpreter.build(code), None
 
 def _load_langs():
+    if not path.exists(_LANGS_FILE):
+        logger.error('Language file %s not found.', _LANGS_FILE)
+        exit(1)
     with open(_LANGS_FILE) as file:
         langs_config = yaml.load(file, Loader=yaml.RoundTripLoader)
     langs = dict()
