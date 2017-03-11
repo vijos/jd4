@@ -118,7 +118,8 @@ class LegacyCase:
 
 def read_legacy_cases(file):
     zip_file = ZipFile(file)
-    config = TextIOWrapper(zip_file.open('Config.ini'))
+    canonical_dict = dict((name.lower(), name) for name in zip_file.namelist())
+    config = TextIOWrapper(zip_file.open(canonical_dict['config.ini']))
     num_cases = int(config.readline())
     for line in islice(csv.reader(config, delimiter='|'), num_cases):
         input, output, time_sec_str, score_str = line[:4]
@@ -126,8 +127,8 @@ def read_legacy_cases(file):
             mem_kb = int(line[4])
         except (IndexError, ValueError):
             mem_kb = DEFAULT_MEM_KB
-        open_input = partial(zip_file.open, path.join('Input', input))
-        open_output = partial(zip_file.open, path.join('Output', output))
+        open_input = partial(zip_file.open, canonical_dict[path.join('input', input.lower())])
+        open_output = partial(zip_file.open, canonical_dict[path.join('output', output.lower())])
         yield LegacyCase(open_input, open_output,
                          int(float(time_sec_str) * 1e9),
                          mem_kb * 1024,
