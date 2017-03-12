@@ -26,8 +26,12 @@ async def _interpreter_build(interpreter, _, code):
     return interpreter.build(code), None
 
 def _load_langs():
-    with open(_LANGS_FILE) as file:
-        langs_config = yaml.load(file, Loader=yaml.RoundTripLoader)
+    try:
+        with open(_LANGS_FILE) as file:
+            langs_config = yaml.load(file, Loader=yaml.RoundTripLoader)
+    except FileNotFoundError:
+        logger.error('Language file %s not found.', _LANGS_FILE)
+        exit(1)
     langs = dict()
     for lang_name, lang_config in langs_config.items():
         if lang_config['type'] == 'compiler':

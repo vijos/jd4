@@ -7,11 +7,7 @@ from urllib.parse import urljoin
 from jd4.config import cookie_jar, save_cookies
 from jd4.log import logger
 
-SERVER_URL = 'https://vijos.org'
 CHUNK_SIZE = 32768
-
-def full_url(*parts):
-    return urljoin(SERVER_URL, path.join(*parts))
 
 class VJ4Error(Exception):
     def __init__(self, name, message, *args):
@@ -20,35 +16,44 @@ class VJ4Error(Exception):
         self.message = message
         self.args = args
 
+    def __repr__(self):
+        return '{}: {} ({})'.format(self.name, self.message, ', '.join(map(str, self.args)))
+
 async def json_response_to_dict(response):
     if response.content_type != 'application/json':
         raise Exception('invalid content type ' + response.content_type)
     response_dict = await response.json()
     if 'error' in response_dict:
         error = response_dict['error']
-        raise VJ4Error(error.get('name', 'unknown'), error.get('message', ''), *error.get('args', []))
+        raise VJ4Error(error.get('name', 'unknown'),
+                       error.get('message', ''),
+                       *error.get('args', []))
     return response_dict
 
 class VJ4Session(ClientSession):
-    def __init__(self):
+    def __init__(self, server_url):
         super().__init__(cookie_jar=cookie_jar)
+        self.server_url = server_url
+
+    def full_url(self, *parts):
+        return urljoin(self.server_url, path.join(*parts))
 
     async def get_json(self, relative_url, **kwargs):
-        async with self.get(full_url(relative_url),
+        async with self.get(self.full_url(relative_url),
                             headers={'accept': 'application/json'},
                             allow_redirects=False,
                             params=kwargs) as response:
             return await json_response_to_dict(response)
 
     async def post_json(self, relative_url, **kwargs):
-        async with self.post(full_url(relative_url),
+        async with self.post(self.full_url(relative_url),
                              headers={'accept': 'application/json'},
                              allow_redirects=False,
                              data=kwargs) as response:
             return await json_response_to_dict(response)
 
     async def judge_consume(self, handler_type):
-        async with self.ws_connect(full_url('judge/consume-conn/websocket')) as ws:
+        async with self.ws_connect(self.full_url('judge/consume-conn/websocket')) as ws:
             logger.info('Connected')
             async for msg in ws:
                 request = json.loads(msg.data)
@@ -79,7 +84,7 @@ class VJ4Session(ClientSession):
     async def problem_data(self, domain_id, pid, save_path):
         logger.info('Getting problem data: %s, %s', domain_id, pid)
         loop = get_event_loop()
-        async with self.get(full_url('d', domain_id, 'p', pid, 'data'),
+        async with self.get(self.full_url('d', domain_id, 'p', pid, 'data'),
                             headers={'accept': 'application/json'}) as response:
             if response.content_type == 'application/json':
                 response_dict = await response.json()
@@ -100,7 +105,7 @@ class VJ4Session(ClientSession):
 
     async def record_pretest_data(self, rid):
         logger.info('Getting pretest data: %s', rid)
-        async with self.get(full_url('records', rid, 'data'),
+        async with self.get(self.full_url('records', rid, 'data'),
                             headers={'accept': 'application/json'}) as response:
             if response.content_type == 'application/json':
                 response_dict = await response.json()

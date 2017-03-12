@@ -21,6 +21,7 @@ async def cache_open(session, domain_id, pid):
             _events[(domain_id, pid)] = event
             await session.problem_data(domain_id, pid, file_path)
             event.set()
+            del _events[(domain_id, pid)]
         else:
             await event.wait()
 
