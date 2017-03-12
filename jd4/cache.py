@@ -6,7 +6,6 @@ _CACHE_DIR = user_cache_dir('jd4')
 _events = dict()
 
 async def cache_open(session, domain_id, pid):
-    pid = str(pid)
     domain_dir = path.join(_CACHE_DIR, domain_id)
     makedirs(domain_dir, exist_ok=True)
     file_path = path.join(domain_dir, pid + '.zip')
@@ -27,7 +26,6 @@ async def cache_open(session, domain_id, pid):
             await event.wait()
 
 async def cache_invalidate(domain_id, pid):
-    pid = str(pid)
     loop = get_event_loop()
     file_path = path.join(_CACHE_DIR, domain_id, pid + '.zip')
     try:

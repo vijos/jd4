@@ -4,7 +4,7 @@ Next generation of judge daemon for [Vijos](https://vijos.org), built with async
 
 ## Prerequisites
 
-* [Linux Kernel 4.0+]
+* [Linux 4.4+]
 * [Python 3.5+](https://www.python.org/downloads/)
 
 ## Install requirements

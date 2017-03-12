@@ -12,11 +12,12 @@ _CONFIG_FILE = path.join(_CONFIG_DIR, 'config.yaml')
 _COOKIES_FILE = path.join(_CONFIG_DIR, 'cookies')
 
 def _load_config():
-    if not path.exists(_CONFIG_FILE):
+    try:
+        with open(_CONFIG_FILE) as file:
+            return yaml.load(file, Loader=yaml.RoundTripLoader)
+    except FileNotFoundError:
         logger.error('Config file %s not found.', _CONFIG_FILE)
         exit(1)
-    with open(_CONFIG_FILE) as file:
-        return yaml.load(file, Loader=yaml.RoundTripLoader)
 
 config = _load_config()
 
@@ -37,13 +38,6 @@ _save_cookie_function = partial(cookie_jar.save, _COOKIES_FILE)
 
 async def save_cookies():
     await get_event_loop().run_in_executor(None, _save_cookie_function)
-
-def try_get_int(key, default=0):
-  value = config.get(key, default)
-  try:
-    return int(value)
-  except ValueError:
-    return default
 
 
 if __name__ == '__main__':

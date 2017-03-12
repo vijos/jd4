@@ -16,7 +16,7 @@ class VJ4Error(Exception):
         self.message = message
         self.args = args
 
-    def __str__(self):
+    def __repr__(self):
         return '{}: {} ({})'.format(self.name, self.message, ', '.join(map(str, self.args)))
 
 async def json_response_to_dict(response):
