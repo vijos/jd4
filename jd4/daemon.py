@@ -84,7 +84,7 @@ class JudgeHandler:
 
     async def build(self):
         lang = self.request.pop('lang')
-        self.next(status=STATUS_COMPILING, progress=0)
+        self.next(status=STATUS_COMPILING)
         build_fn = langs.get(lang)
         if not build_fn:
             raise SystemError('Unsupported language: {}'.format(lang))
