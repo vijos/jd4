@@ -42,10 +42,10 @@ class JudgeHandler:
                 else:
                     raise SystemError('Unknown event: {}'.format(event))
             else:
-                type = self.request.pop('type')
-                if type == 0:
+                self.type = self.request.pop('type')
+                if self.type == 0:
                     await self.submission()
-                elif type == 1:
+                elif self.type == 1:
                     await self.pretest()
                 else:
                     raise SystemError('Unsupported type: {}'.format(type))
@@ -110,12 +110,16 @@ class JudgeHandler:
         total_memory_usage_bytes = 0
         for index, case in enumerate(cases):
             status, score, time_usage_ns, memory_usage_bytes, stderr = await case.judge(sandbox, package)
+            if self.type == 1:
+                judge_text = stderr.decode(encoding='utf-8', errors='replace')
+            else:
+                judge_text = ''
             self.next(status=STATUS_JUDGING,
                       case={'status': status,
                             'score': score,
                             'time_ms': time_usage_ns // 1000000,
                             'memory_kb': memory_usage_bytes // 1024,
-                            'judge_text': stderr.decode(encoding='utf-8', errors='replace')},
+                            'judge_text': judge_text},
                       progress=(index + 1) * 100 // len(cases))
             logger.debug('Case %d: %d, %g, %g, %g, %s',
                          index, status, score, time_usage_ns / 1000000, memory_usage_bytes / 1024, stderr)
