@@ -22,6 +22,8 @@ addons:
       - gcc
       - fpc
       - default-jdk
+      - libseccomp-dev
+      - linux-libc-dev
 cache:
   directories:
     - $HOME/.cache/pip
