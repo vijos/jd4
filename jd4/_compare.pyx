@@ -1,3 +1,17 @@
+"""Comparing two streams with loose whitespace and newline rules.
+
+This is written in cython for performance reasons. A simple test showed that
+using cython here can achieve 50x+ performance over python.
+
+We have to use magic numbers here because cython doesn't support constants:
+
+CHUNK_SIZE = 32768
+EOF = -1
+CR = 13
+LF = 10
+TAB = 9
+SPACE = 32
+"""
 cdef class StreamReader:
     cdef stream
     cdef bytes buffer
