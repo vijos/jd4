@@ -9,7 +9,7 @@ from jd4.config import config, save_config
 from jd4.langs import langs
 from jd4.log import logger
 from jd4.sandbox import create_sandbox
-from jd4.status import STATUS_COMPILE_ERROR, STATUS_SYSTEM_ERROR
+from jd4.status import STATUS_COMPILE_ERROR, STATUS_SYSTEM_ERROR, STATUS_JUDGING, STATUS_COMPILING
 
 RETRY_DELAY_SEC = 30
 
@@ -84,6 +84,7 @@ class JudgeHandler:
 
     async def build(self):
         lang = self.request.pop('lang')
+        self.next(status=STATUS_COMPILING, progress=0)
         build_fn = langs.get(lang)
         if not build_fn:
             raise SystemError('Unsupported language: {}'.format(lang))
@@ -91,6 +92,7 @@ class JudgeHandler:
         if not package:
             logger.info('Compile error: %s', message)
             raise CompileError(message)
+        self.next(status=STATUS_JUDGING, progress=0)
         return package
 
     async def judge(self, cases_file, package):
@@ -101,12 +103,13 @@ class JudgeHandler:
         total_memory_usage_bytes = 0
         for index, case in enumerate(cases):
             status, score, time_usage_ns, memory_usage_bytes, stderr = await case.judge(sandbox, package)
-            self.next(case={'status': status,
+            self.next(status=STATUS_JUDGING,
+                      case={'status': status,
                             'score': score,
                             'time_ms': time_usage_ns // 1000000,
                             'memory_kb': memory_usage_bytes // 1024,
                             'judge_text': stderr.decode(encoding='utf-8', errors='replace')},
-                      progress=(index + 1) / len(cases))
+                      progress=(index + 1) / len(cases) * 100)
             logger.debug('Case %d: %d, %g, %g, %g, %s',
                          index, status, score, time_usage_ns / 1000000, memory_usage_bytes / 1024, stderr)
             total_status = max(total_status, status)
