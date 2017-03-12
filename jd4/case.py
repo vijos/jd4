@@ -1,13 +1,16 @@
+import pyximport; pyximport.install()
+
 import csv
 from asyncio import gather, get_event_loop, sleep, wait_for, Event, TimeoutError
 from functools import partial
-from io import TextIOWrapper
-from itertools import islice, zip_longest
+from io import BytesIO, TextIOWrapper
+from itertools import islice
 from os import cpu_count, mkfifo, path
 from random import randint
 from shutil import copyfileobj
 from zipfile import ZipFile
 
+from jd4._compare import compare_stream
 from jd4.cgroup import CGroup, try_init_cgroup
 from jd4.compile import Compiler
 from jd4.status import STATUS_ACCEPTED, STATUS_WRONG_ANSWER, STATUS_RUNTIME_ERROR, \
@@ -21,22 +24,6 @@ MAX_STDERR_SIZE = 8192
 WAIT_JITTER_NS = 5000000
 PROCESS_LIMIT = 32
 DEFAULT_MEM_KB = 131072
-
-def chunk_and_strip_lines(f):
-    prev = b''
-    cur = f.readline(CHUNK_SIZE).lstrip()
-    while cur:
-        if prev and prev[-1] in b'\r\n':
-            prev, cur = prev.rstrip(), cur.lstrip()
-        if prev: yield prev
-        prev, cur = cur, f.readline(CHUNK_SIZE)
-    if prev: prev = prev.rstrip()
-    if prev: yield prev
-
-def compare_file(fa, fb):
-    a = chunk_and_strip_lines(fa)
-    b = chunk_and_strip_lines(fb)
-    return all(x == y for x, y in zip_longest(a, b))
 
 def get_idle():
     return float(read_text_file('/proc/uptime').split()[1])
@@ -123,10 +110,12 @@ class LegacyCase(CaseBase):
         self.open_output = open_output
 
     def do_stdin(self, stdin_file):
-        copyfileobj(self.open_input(), open(stdin_file, 'wb'), CHUNK_SIZE)
+        with self.open_input() as src, open(stdin_file, 'wb') as dst:
+            copyfileobj(src, dst, CHUNK_SIZE)
 
     def do_stdout(self, stdout_file):
-        return compare_file(self.open_output(), open(stdout_file, 'rb'))
+        with self.open_output() as ans, open(stdout_file, 'rb') as out:
+            return compare_stream(ans, out)
 
 class APlusBCase(CaseBase):
     def __init__(self, a, b):
@@ -139,11 +128,8 @@ class APlusBCase(CaseBase):
             file.write('{} {}\n'.format(self.a, self.b))
 
     def do_stdout(self, stdout_file):
-        with open(stdout_file) as file:
-            try:
-                return int(file.read()) == self.a + self.b
-            except (UnicodeDecodeError, ValueError):
-                return False
+        with open(stdout_file, 'rb') as file:
+            return compare_stream(BytesIO(str(self.a + self.b).encode()), file)
 
 def read_legacy_cases(file):
     zip_file = ZipFile(file)
@@ -174,6 +160,8 @@ int main(void) {
     printf("%d\\n", a + b);
 }""")
         package, _ = await gcc.build(sandbox)
+        for case in read_legacy_cases('examples/1000.zip'):
+            logger.info(await case.judge(sandbox, package))
         for i in range(10):
             logger.info(await APlusBCase(randint(0, 32767),
                                          randint(0, 32767)).judge(sandbox, package))

@@ -1,6 +1,7 @@
 aiohttp
+appdirs
 butter
 cloudpickle
 colorlog
-appdirs
+cython
 ruamel.yaml
