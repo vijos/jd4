@@ -5,7 +5,7 @@ c:
     code_file: foo.c
     execute_file: foo
     execute_args: foo
-    time_limit_ns: 20000000000
+    time_limit_ms: 20000
 cc:
     type: compiler
     compiler_file: /usr/bin/g++
@@ -13,7 +13,7 @@ cc:
     code_file: foo.cc
     execute_file: foo
     execute_args: foo
-    time_limit_ns: 20000000000
+    time_limit_ms: 20000
 pas:
     type: compiler
     compiler_file: /usr/bin/fpc
@@ -21,7 +21,7 @@ pas:
     code_file: foo.pas
     execute_file: foo
     execute_args: foo
-    time_limit_ns: 20000000000
+    time_limit_ms: 20000
 java:
     type: compiler
     compiler_file: /usr/bin/javac
@@ -29,7 +29,7 @@ java:
     code_file: Main.java
     execute_file: /usr/bin/java
     execute_args: java Main
-    time_limit_ns: 20000000000
+    time_limit_ms: 20000
 py:
     type: interpreter
     code_file: foo.py

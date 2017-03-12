@@ -55,8 +55,8 @@ def _load_langs():
                                 shlex.split(lang_config['execute_args']))
             langs[lang_name] = partial(
                 _compiler_build, compiler,
-                time_limit_ns=lang_config.get('time_limit_ns', DEFAULT_TIME_MS * 1e6),
-                memory_limit_bytes=lang_config.get('memory_limit_bytes', DEFAULT_MEM_KB * 1024),
+                time_limit_ns=lang_config.get('time_limit_ms', DEFAULT_TIME_MS) * 1e6,
+                memory_limit_bytes=lang_config.get('memory_limit_kb', DEFAULT_MEM_KB) * 1024,
                 process_limit=lang_config.get('process_limit', PROCESS_LIMIT))
         elif lang_config['type'] == 'interpreter':
             interpreter = Interpreter(lang_config['code_file'],
