@@ -37,20 +37,22 @@ async def accept_and_limit(cgroup, time_limit_ns, memory_limit_bytes, process_li
     exit_event = Event()
 
     async def limit_task():
-        while True:
-            cpu_usage_ns = cgroup.cpu_usage_ns
-            idle_usage_ns = int((get_idle() - start_idle) / cpu_count() * 1e9)
-            time_usage_ns = max(cpu_usage_ns, idle_usage_ns)
-            time_remain_ns = time_limit_ns - time_usage_ns
-            if time_remain_ns <= 0:
-                break
-            try:
-                await wait_for(exit_event.wait(), (time_remain_ns + WAIT_JITTER_NS) / 1e9)
-                break
-            except TimeoutError:
-                pass
-        while cgroup.kill():
-            await sleep(.001)
+        try:
+            while True:
+                cpu_usage_ns = cgroup.cpu_usage_ns
+                idle_usage_ns = int((get_idle() - start_idle) / cpu_count() * 1e9)
+                time_usage_ns = max(cpu_usage_ns, idle_usage_ns)
+                time_remain_ns = time_limit_ns - time_usage_ns
+                if time_remain_ns <= 0:
+                    break
+                try:
+                    await wait_for(exit_event.wait(), (time_remain_ns + WAIT_JITTER_NS) / 1e9)
+                    break
+                except TimeoutError:
+                    pass
+        finally:
+            while cgroup.kill():
+                await sleep(.001)
         if time_usage_ns < time_limit_ns:
             time_usage_ns = cpu_usage_ns
         return time_usage_ns, cgroup.memory_usage_bytes
@@ -74,18 +76,21 @@ class CaseBase:
         stderr_file = path.join(sandbox.in_dir, 'stderr')
         mkfifo(stderr_file)
         cgroup = CGroup(path.join(sandbox.in_dir, 'cgroup'))
-        _, correct, stderr, (exit_event, usage_future), execute_status = await gather(
-            loop.run_in_executor(None, self.do_stdin, stdin_file),
-            loop.run_in_executor(None, self.do_stdout, stdout_file),
-            read_pipe(stderr_file, MAX_STDERR_SIZE),
-            accept_and_limit(cgroup, self.time_limit_ns, self.memory_limit_bytes, self.process_limit),
-            executable.execute(sandbox,
-                               stdin_file='/in/stdin',
-                               stdout_file='/in/stdout',
-                               stderr_file='/in/stderr',
-                               cgroup_file='/in/cgroup'))
-        exit_event.set()
-        time_usage_ns, memory_usage_bytes = await usage_future
+        try:
+            _, correct, stderr, (exit_event, usage_future), execute_status = await gather(
+                loop.run_in_executor(None, self.do_stdin, stdin_file),
+                loop.run_in_executor(None, self.do_stdout, stdout_file),
+                read_pipe(stderr_file, MAX_STDERR_SIZE),
+                accept_and_limit(cgroup, self.time_limit_ns, self.memory_limit_bytes, self.process_limit),
+                executable.execute(sandbox,
+                                   stdin_file='/in/stdin',
+                                   stdout_file='/in/stdout',
+                                   stderr_file='/in/stderr',
+                                   cgroup_file='/in/cgroup'))
+            exit_event.set()
+            time_usage_ns, memory_usage_bytes = await usage_future
+        finally:
+            cgroup.close()
         if memory_usage_bytes >= self.memory_limit_bytes:
             status = STATUS_MEMORY_LIMIT_EXCEEDED
             score = 0

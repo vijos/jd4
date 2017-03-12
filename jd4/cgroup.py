@@ -47,11 +47,10 @@ class CGroup:
         self.sock.bind(socket_path)
         self.sock.listen()
 
-    def __del__(self):
-        while self.kill():
-            sleep(.001)
+    def close(self):
         rmdir(self.cpuacct_cgroup_dir)
         rmdir(self.memory_cgroup_dir)
+        rmdir(self.pids_cgroup_dir)
 
     async def accept_one(self):
         loop = asyncio.get_event_loop()
