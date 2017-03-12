@@ -4,6 +4,7 @@ from functools import partial
 from io import TextIOWrapper
 from itertools import islice, zip_longest
 from os import cpu_count, mkfifo, path
+from random import randint
 from shutil import copyfileobj
 from zipfile import ZipFile
 
@@ -69,12 +70,11 @@ async def accept_and_limit(cgroup, time_limit_ns, memory_limit_bytes, process_li
 
     return exit_event, loop.create_task(limit_task())
 
-class LegacyCase:
-    def __init__(self, open_input, open_output, time_limit_ns, memory_limit_bytes, score):
-        self.open_input = open_input
-        self.open_output = open_output
+class CaseBase:
+    def __init__(self, time_limit_ns, memory_limit_bytes, process_limit, score):
         self.time_limit_ns = time_limit_ns
         self.memory_limit_bytes = memory_limit_bytes
+        self.process_limit = process_limit
         self.score = score
 
     async def judge(self, sandbox, package):
@@ -87,16 +87,16 @@ class LegacyCase:
         stderr_file = path.join(sandbox.in_dir, 'stderr')
         mkfifo(stderr_file)
         cgroup = CGroup(path.join(sandbox.in_dir, 'cgroup'))
-        _, correct, stderr, execute_status, (exit_event, usage_future) = await gather(
-            loop.run_in_executor(None, lambda: copyfileobj(self.open_input(), open(stdin_file, 'wb'), CHUNK_SIZE)),
-            loop.run_in_executor(None, lambda: compare_file(self.open_output(), open(stdout_file, 'rb'))),
+        _, correct, stderr, (exit_event, usage_future), execute_status = await gather(
+            loop.run_in_executor(None, self.do_stdin, stdin_file),
+            loop.run_in_executor(None, self.do_stdout, stdout_file),
             read_pipe(stderr_file, MAX_STDERR_SIZE),
+            accept_and_limit(cgroup, self.time_limit_ns, self.memory_limit_bytes, self.process_limit),
             executable.execute(sandbox,
                                stdin_file='/in/stdin',
                                stdout_file='/in/stdout',
                                stderr_file='/in/stderr',
-                               cgroup_file='/in/cgroup'),
-            accept_and_limit(cgroup, self.time_limit_ns, self.memory_limit_bytes, PROCESS_LIMIT))
+                               cgroup_file='/in/cgroup'))
         exit_event.set()
         time_usage_ns, memory_usage_bytes = await usage_future
         if memory_usage_bytes >= self.memory_limit_bytes:
@@ -116,6 +116,35 @@ class LegacyCase:
             score = self.score
         return status, score, time_usage_ns, memory_usage_bytes, stderr
 
+class LegacyCase(CaseBase):
+    def __init__(self, open_input, open_output, time_sec, mem_kb, score):
+        super().__init__(int(time_sec * 1e9), int(mem_kb * 1024), PROCESS_LIMIT, score)
+        self.open_input = open_input
+        self.open_output = open_output
+
+    def do_stdin(self, stdin_file):
+        copyfileobj(self.open_input(), open(stdin_file, 'wb'), CHUNK_SIZE)
+
+    def do_stdout(self, stdout_file):
+        return compare_file(self.open_output(), open(stdout_file, 'rb'))
+
+class APlusBCase(CaseBase):
+    def __init__(self, a, b):
+        super().__init__(1000000000, 134217728, PROCESS_LIMIT, 10)
+        self.a = a
+        self.b = b
+
+    def do_stdin(self, stdin_file):
+        with open(stdin_file, 'w') as file:
+            file.write('{} {}\n'.format(self.a, self.b))
+
+    def do_stdout(self, stdout_file):
+        with open(stdout_file) as file:
+            try:
+                return int(file.read()) == self.a + self.b
+            except (UnicodeDecodeError, ValueError):
+                return False
+
 def read_legacy_cases(file):
     zip_file = ZipFile(file)
     canonical_dict = dict((name.lower(), name) for name in zip_file.namelist())
@@ -125,15 +154,12 @@ def read_legacy_cases(file):
     for line in islice(csv.reader(config, delimiter='|'), num_cases):
         input, output, time_sec_str, score_str = line[:4]
         try:
-            mem_kb = int(line[4])
+            mem_kb = float(line[4])
         except (IndexError, ValueError):
             mem_kb = DEFAULT_MEM_KB
         open_input = partial(zip_file.open, canonical_dict[path.join('input', input.lower())])
         open_output = partial(zip_file.open, canonical_dict[path.join('output', output.lower())])
-        yield LegacyCase(open_input, open_output,
-                         int(float(time_sec_str) * 1e9),
-                         mem_kb * 1024,
-                         int(score_str))
+        yield LegacyCase(open_input, open_output, float(time_sec_str), mem_kb, int(score_str))
 
 if __name__ == '__main__':
     async def main():
@@ -148,7 +174,8 @@ int main(void) {
     printf("%d\\n", a + b);
 }""")
         package, _ = await gcc.build(sandbox)
-        for case in read_legacy_cases('examples/1000.zip'):
-            logger.info(await case.judge(sandbox, package))
+        for i in range(10):
+            logger.info(await APlusBCase(randint(0, 32767),
+                                         randint(0, 32767)).judge(sandbox, package))
 
     get_event_loop().run_until_complete(main())
