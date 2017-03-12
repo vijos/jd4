@@ -92,10 +92,10 @@ class JudgeHandler:
         if not package:
             logger.info('Compile error: %s', message)
             raise CompileError(message)
-        self.next(status=STATUS_JUDGING, progress=0)
         return package
 
     async def judge(self, cases_file, package):
+        self.next(status=STATUS_JUDGING, progress=0)
         cases = list(read_legacy_cases(cases_file))
         total_status = 0
         total_score = 0
