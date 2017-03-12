@@ -1,12 +1,12 @@
 import asyncio
+from asyncio import Event, get_event_loop, sleep, wait_for, TimeoutError
 from itertools import chain
-from os import access, geteuid, kill, makedirs, path, rmdir, W_OK
+from os import access, cpu_count, geteuid, kill, makedirs, path, rmdir, W_OK
 from signal import SIGKILL
 from socket import socket, AF_UNIX, SOCK_STREAM, SOCK_NONBLOCK, SOL_SOCKET, SO_PEERCRED
 from subprocess import call
 from sys import __stdin__
 from tempfile import mkdtemp
-from time import sleep
 
 from jd4.log import logger
 from jd4.util import read_text_file, write_text_file
@@ -14,6 +14,11 @@ from jd4.util import read_text_file, write_text_file
 CPUACCT_CGROUP_ROOT = '/sys/fs/cgroup/cpuacct/jd4'
 MEMORY_CGROUP_ROOT = '/sys/fs/cgroup/memory/jd4'
 PIDS_CGROUP_ROOT = '/sys/fs/cgroup/pids/jd4'
+
+WAIT_JITTER_NS = 5000000
+PROCESS_LIMIT = 32
+DEFAULT_TIME_MS = 1000
+DEFAULT_MEM_KB = 262144
 
 def try_init_cgroup():
     euid = geteuid()
@@ -108,3 +113,39 @@ def enter_cgroup(socket_path):
     with socket(AF_UNIX, SOCK_STREAM) as sock:
         sock.connect(socket_path)
         sock.recv(1)
+
+def get_idle():
+    return float(read_text_file('/proc/uptime').split()[1])
+
+async def accept_and_limit(cgroup, time_limit_ns, memory_limit_bytes, process_limit):
+    loop = get_event_loop()
+    cgroup.memory_limit_bytes = memory_limit_bytes
+    cgroup.pids_max = process_limit
+    await cgroup.accept_one()
+    start_idle = get_idle()
+    exit_event = Event()
+
+    def idle_usage_ns():
+        return int((get_idle() - start_idle) / cpu_count() * 1e9)
+
+    async def limit_task():
+        try:
+            while True:
+                time_remain_ns = time_limit_ns - max(cgroup.cpu_usage_ns, idle_usage_ns())
+                if time_remain_ns <= 0:
+                    break
+                try:
+                    await wait_for(exit_event.wait(), (time_remain_ns + WAIT_JITTER_NS) / 1e9)
+                    break
+                except TimeoutError:
+                    pass
+        finally:
+            while cgroup.kill():
+                await sleep(.001)
+        if idle_usage_ns() < time_limit_ns:
+            time_usage_ns = cgroup.cpu_usage_ns
+        else:
+            time_usage_ns = time_limit_ns
+        return time_usage_ns, cgroup.memory_usage_bytes
+
+    return exit_event, loop.create_task(limit_task())

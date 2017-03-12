@@ -18,7 +18,10 @@ loop = get_event_loop()
 sandbox = loop.run_until_complete(create_sandbox())
 
 class CompileError(Exception):
-    pass
+    def __init__(self, message, time_usage_ns, memory_usage_bytes):
+        super().__init__(message)
+        self.time_usage_ns = time_usage_ns
+        self.memory_usage_bytes = memory_usage_bytes
 
 class SystemError(Exception):
     pass
@@ -49,7 +52,10 @@ class JudgeHandler:
             for key in self.request:
                 logger.warning('Unused key in judge request: %s', key)
         except CompileError as e:
-            self.end(status=STATUS_COMPILE_ERROR, score=0, time_ms=0, memory_kb=0)
+            self.end(status=STATUS_COMPILE_ERROR,
+                     score=0,
+                     time_ms=e.time_usage_ns // 1000000,
+                     memory_kb=e.memory_usage_bytes // 1024)
         except Exception as e:
             logger.exception(e)
             self.next(judge_text=repr(e))
@@ -87,11 +93,12 @@ class JudgeHandler:
         build_fn = langs.get(lang)
         if not build_fn:
             raise SystemError('Unsupported language: {}'.format(lang))
-        package, message = await build_fn(sandbox, self.request.pop('code').encode())
+        package, message, time_usage_ns, memory_usage_bytes = \
+            await build_fn(sandbox, self.request.pop('code').encode())
         self.next(compiler_text=message)
         if not package:
-            logger.info('Compile error: %s', message)
-            raise CompileError(message)
+            logger.debug('Compile error: %s', message)
+            raise CompileError(message, time_usage_ns, memory_usage_bytes)
         return package
 
     async def judge(self, cases_file, package):
@@ -121,7 +128,7 @@ class JudgeHandler:
                  time_ms=total_time_usage_ns // 1000000,
                  memory_kb=total_memory_usage_bytes // 1024)
         logger.info('Total: %d, %g, %g, %g',
-                     total_status, total_score, total_time_usage_ns / 1000000, total_memory_usage_bytes / 1024)
+                    total_status, total_score, total_time_usage_ns / 1000000, total_memory_usage_bytes / 1024)
 
     def next(self, **kwargs):
         self.ws.send_json({'key': 'next', 'tag': self.tag, **kwargs})

@@ -1,63 +1,27 @@
 import pyximport; pyximport.install()
 
 import csv
-from asyncio import gather, get_event_loop, sleep, wait_for, Event, TimeoutError
+from asyncio import gather, get_event_loop, sleep, TimeoutError
 from functools import partial
 from io import BytesIO, TextIOWrapper
 from itertools import islice
-from os import cpu_count, mkfifo, path
+from os import mkfifo, path
 from random import randint
 from shutil import copyfileobj
 from zipfile import ZipFile
 
 from jd4._compare import compare_stream
-from jd4.cgroup import CGroup, try_init_cgroup
+from jd4.cgroup import CGroup, try_init_cgroup, accept_and_limit, \
+                       PROCESS_LIMIT, DEFAULT_TIME_MS, DEFAULT_MEM_KB
 from jd4.compile import Compiler
 from jd4.status import STATUS_ACCEPTED, STATUS_WRONG_ANSWER, STATUS_RUNTIME_ERROR, \
-                      STATUS_TIME_LIMIT_EXCEEDED, STATUS_MEMORY_LIMIT_EXCEEDED
+                       STATUS_TIME_LIMIT_EXCEEDED, STATUS_MEMORY_LIMIT_EXCEEDED
 from jd4.log import logger
 from jd4.sandbox import create_sandbox
 from jd4.util import read_pipe, read_text_file
 
 CHUNK_SIZE = 32768
 MAX_STDERR_SIZE = 8192
-WAIT_JITTER_NS = 5000000
-PROCESS_LIMIT = 32
-DEFAULT_MEM_KB = 262144
-
-def get_idle():
-    return float(read_text_file('/proc/uptime').split()[1])
-
-async def accept_and_limit(cgroup, time_limit_ns, memory_limit_bytes, process_limit):
-    loop = get_event_loop()
-    cgroup.memory_limit_bytes = memory_limit_bytes
-    cgroup.pids_max = process_limit
-    await cgroup.accept_one()
-    start_idle = get_idle()
-    exit_event = Event()
-
-    async def limit_task():
-        try:
-            while True:
-                cpu_usage_ns = cgroup.cpu_usage_ns
-                idle_usage_ns = int((get_idle() - start_idle) / cpu_count() * 1e9)
-                time_usage_ns = max(cpu_usage_ns, idle_usage_ns)
-                time_remain_ns = time_limit_ns - time_usage_ns
-                if time_remain_ns <= 0:
-                    break
-                try:
-                    await wait_for(exit_event.wait(), (time_remain_ns + WAIT_JITTER_NS) / 1e9)
-                    break
-                except TimeoutError:
-                    pass
-        finally:
-            while cgroup.kill():
-                await sleep(.001)
-        if time_usage_ns < time_limit_ns:
-            time_usage_ns = cpu_usage_ns
-        return time_usage_ns, cgroup.memory_usage_bytes
-
-    return exit_event, loop.create_task(limit_task())
 
 class CaseBase:
     def __init__(self, time_limit_ns, memory_limit_bytes, process_limit, score):
@@ -124,7 +88,7 @@ class LegacyCase(CaseBase):
 
 class APlusBCase(CaseBase):
     def __init__(self, a, b):
-        super().__init__(1000000000, DEFAULT_MEM_KB * 1024, PROCESS_LIMIT, 10)
+        super().__init__(DEFAULT_TIME_MS * 1e6, DEFAULT_MEM_KB * 1024, PROCESS_LIMIT, 10)
         self.a = a
         self.b = b
 
