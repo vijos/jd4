@@ -36,13 +36,13 @@ async def accept_and_limit(cgroup, time_limit_ns, memory_limit_bytes, process_li
     start_idle = get_idle()
     exit_event = Event()
 
+    def idle_usage_ns():
+        return int((get_idle() - start_idle) / cpu_count() * 1e9)
+
     async def limit_task():
         try:
             while True:
-                cpu_usage_ns = cgroup.cpu_usage_ns
-                idle_usage_ns = int((get_idle() - start_idle) / cpu_count() * 1e9)
-                time_usage_ns = max(cpu_usage_ns, idle_usage_ns)
-                time_remain_ns = time_limit_ns - time_usage_ns
+                time_remain_ns = time_limit_ns - max(cgroup.cpu_usage_ns, idle_usage_ns())
                 if time_remain_ns <= 0:
                     break
                 try:
@@ -53,8 +53,10 @@ async def accept_and_limit(cgroup, time_limit_ns, memory_limit_bytes, process_li
         finally:
             while cgroup.kill():
                 await sleep(.001)
-        if time_usage_ns < time_limit_ns:
-            time_usage_ns = cpu_usage_ns
+        if idle_usage_ns() < time_limit_ns:
+            time_usage_ns = cgroup.cpu_usage_ns
+        else:
+            time_usage_ns = time_limit_ns
         return time_usage_ns, cgroup.memory_usage_bytes
 
     return exit_event, loop.create_task(limit_task())
