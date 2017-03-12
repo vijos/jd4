@@ -118,7 +118,10 @@ class LegacyCase(CaseBase):
 
     def do_stdin(self, stdin_file):
         with self.open_input() as src, open(stdin_file, 'wb') as dst:
-            copyfileobj(src, dst, CHUNK_SIZE)
+            try:
+                copyfileobj(src, dst, CHUNK_SIZE)
+            except BrokenPipeError:
+                pass
 
     def do_stdout(self, stdout_file):
         with self.open_output() as ans, open(stdout_file, 'rb') as out:
@@ -132,7 +135,10 @@ class APlusBCase(CaseBase):
 
     def do_stdin(self, stdin_file):
         with open(stdin_file, 'w') as file:
-            file.write('{} {}\n'.format(self.a, self.b))
+            try:
+                file.write('{} {}\n'.format(self.a, self.b))
+            except BrokenPipeError:
+                pass
 
     def do_stdout(self, stdout_file):
         with open(stdout_file, 'rb') as file:
