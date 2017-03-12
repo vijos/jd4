@@ -30,7 +30,9 @@ Configuration
 -------------
 
 Put config.yaml and langs.yaml in the configuration directory, usually in
-``$HOME/.config/jd4``. Examples can be found under the ``examples`` directory::
+``$HOME/.config/jd4``. Examples can be found under the ``examples`` directory.
+
+We recommend to use the following commands to initialize the config::
 
     mkdir -p ~/.config/jd4
     cp examples/config.yaml ~/.config/jd4/
@@ -45,13 +47,10 @@ We currently run our daemon in tmux with the following command::
 
 TODO(iceboy): Find a way to babysit the daemon, such as using systemd.
 
-Playground
-----------
-
 Playing with the sandbox
-^^^^^^^^^^^^^^^^^^^^^^^^
+------------------------
 
-::
+Use the following command to create and enter the sandbox::
 
     # python3 -m jd4.sandbox
 
@@ -60,6 +59,9 @@ Playing with the sandbox
     bunny-4.3$ ls
     bin  etc  in  lib  lib64  out  proc  usr
     bunny-4.3$
+
+The ``in`` and ``out`` directory are bound to the corresponding directory
+in ``sandbox_dir``, where ``in`` is read-only and ``out`` has write permission.
 
 FAQ
 ---
@@ -82,7 +84,7 @@ executions per second on our development machine.
 Why is comparator written in cython?
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-The comparator needs to process the user output by charaters (in other word
+The comparator needs to process the user output by characters (in other word
 bytes). This kind of operation is very slow in Python. We see a 50x+
 throughput increment by using Cython (like 3MB/s to 200MB/s).
 
