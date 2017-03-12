@@ -45,6 +45,9 @@ We currently run our daemon in tmux with the following command::
 
     python3 -m jd4.daemon 2>&1 | tee jd4.log
 
+Note that this requires a ``sudo`` to create cgroups on first execution.
+It is not recommended to run the daemon itself as root.
+
 TODO(iceboy): Find a way to babysit the daemon, such as using systemd.
 
 Playing with the sandbox
@@ -52,8 +55,7 @@ Playing with the sandbox
 
 Use the following command to create and enter the sandbox::
 
-    # python3 -m jd4.sandbox
-
+    $ python3 -m jd4.sandbox
     [D 170312 15:15:38 selector_events:53] Using selector: EpollSelector
     [I 170312 15:15:38 sandbox:153] sandbox_dir: /tmp/jd4.sandbox.k6ig1fv8
     bunny-4.3$ ls
@@ -81,7 +83,7 @@ We noticed that sandbox creation took around 100ms, therefore becomes the
 bottleneck while judging small programs. With sandbox pooling, we see 300-400
 executions per second on our development machine.
 
-Why is comparator written in cython?
+Why is comparator written in Cython?
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 The comparator needs to process the user output by characters (in other word
