@@ -20,7 +20,7 @@ async def _compiler_build(compiler, sandbox, code):
     (package, status), output = await gather(
         compiler.build(sandbox, stdout_file='/in/output', stderr_file='/in/output'),
         read_pipe(output_file, _MAX_OUTPUT))
-    return package, output.decode()
+    return package, output.decode(encoding='utf-8', errors='replace')
 
 async def _interpreter_build(interpreter, _, code):
     return interpreter.build(code), None

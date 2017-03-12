@@ -48,10 +48,12 @@ class JudgeHandler:
                     raise SystemError('Unsupported type: {}'.format(type))
             for key in self.request:
                 logger.warning('Unused key in judge request: %s', key)
-        except CompileError:
+        except CompileError as e:
+            self.next(compiler_text=str(e))
             self.end(status=STATUS_COMPILE_ERROR, score=0, time_ms=0, memory_kb=0)
         except Exception as e:
             logger.exception(e)
+            self.next(compiler_text=repr(e))
             self.end(status=STATUS_SYSTEM_ERROR, score=0, time_ms=0, memory_kb=0)
 
     async def update_problem_data(self):
@@ -64,7 +66,8 @@ class JudgeHandler:
     async def submission(self):
         domain_id = self.request.pop('domain_id')
         pid = self.request.pop('pid')
-        logger.info('Submission: %s, %s', domain_id, pid)
+        rid = self.request.pop('rid')
+        logger.info('Submission: %s, %s, %s', domain_id, pid, rid)
         cases_file, package = await gather(cache_open(self.session, domain_id, pid), self.build())
         try:
             await self.judge(cases_file, package)
@@ -72,8 +75,10 @@ class JudgeHandler:
             cases_file.close()
 
     async def pretest(self):
+        domain_id = self.request.pop('domain_id')
+        pid = self.request.pop('pid')
         rid = self.request.pop('rid')
-        logger.info('Pretest: %s', rid)
+        logger.info('Pretest: %s, %s, %s', domain_id, pid, rid)
         cases_data, package = await gather(self.session.record_pretest_data(rid), self.build())
         await self.judge(BytesIO(cases_data), package)
 
@@ -83,9 +88,9 @@ class JudgeHandler:
         if not build_fn:
             raise SystemError('Unsupported language: {}'.format(lang))
         package, message = await build_fn(sandbox, self.request.pop('code').encode())
-        self.next(compiler_text=message)
         if not package:
-            raise CompileError('Compile error: {}'.format(message))
+            logger.info('Compile error: %s', message)
+            raise CompileError(message)
         return package
 
     async def judge(self, cases_file, package):
@@ -100,7 +105,10 @@ class JudgeHandler:
                             'score': score,
                             'time_ms': time_usage_ns // 1000000,
                             'memory_kb': memory_usage_bytes // 1024,
-                            'judge_text': stderr.decode()}, progress=(index + 1) / len(cases))
+                            'judge_text': stderr.decode(encoding='utf-8', errors='replace')},
+                      progress=(index + 1) / len(cases))
+            logger.debug('Case %d: %d, %g, %g, %g, %s',
+                         index, status, score, time_usage_ns / 1000000, memory_usage_bytes / 1024, stderr)
             total_status = max(total_status, status)
             total_score += score
             total_time_usage_ns += time_usage_ns
@@ -109,6 +117,8 @@ class JudgeHandler:
                  score=total_score,
                  time_ms=total_time_usage_ns // 1000000,
                  memory_kb=total_memory_usage_bytes // 1024)
+        logger.info('Total: %d, %g, %g, %g',
+                     total_status, total_score, total_time_usage_ns / 1000000, total_memory_usage_bytes / 1024)
 
     def next(self, **kwargs):
         self.ws.send_json({'key': 'next', 'tag': self.tag, **kwargs})
