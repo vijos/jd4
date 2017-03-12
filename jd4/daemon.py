@@ -52,7 +52,7 @@ class JudgeHandler:
             self.end(status=STATUS_COMPILE_ERROR, score=0, time_ms=0, memory_kb=0)
         except Exception as e:
             logger.exception(e)
-            self.next(compiler_text=repr(e))
+            self.next(judge_text=repr(e))
             self.end(status=STATUS_SYSTEM_ERROR, score=0, time_ms=0, memory_kb=0)
 
     async def update_problem_data(self):
