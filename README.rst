@@ -48,7 +48,7 @@ We currently run our daemon in tmux with the following command::
 Note that this requires a ``sudo`` to create cgroups on first execution.
 It is not recommended to run the daemon itself as root.
 
-TODO(iceboy): Find a way to babysit the daemon, such as using systemd.
+TODO(iceboy): Find a way to babysit the daemon, such as by using systemd.
 
 Playing with the sandbox
 ------------------------
