@@ -49,7 +49,6 @@ class JudgeHandler:
             for key in self.request:
                 logger.warning('Unused key in judge request: %s', key)
         except CompileError as e:
-            self.next(compiler_text=str(e))
             self.end(status=STATUS_COMPILE_ERROR, score=0, time_ms=0, memory_kb=0)
         except Exception as e:
             logger.exception(e)
@@ -89,6 +88,7 @@ class JudgeHandler:
         if not build_fn:
             raise SystemError('Unsupported language: {}'.format(lang))
         package, message = await build_fn(sandbox, self.request.pop('code').encode())
+        self.next(compiler_text=message)
         if not package:
             logger.info('Compile error: %s', message)
             raise CompileError(message)
@@ -129,17 +129,14 @@ class JudgeHandler:
     def end(self, **kwargs):
         self.ws.send_json({'key': 'end', 'tag': self.tag, **kwargs})
 
-
 async def update_problem_data(session):
-    ''' Invalidate all expired data. '''
     logger.info('Update problem data')
     result = await session.judge_datalist(config.get('last_update_at', 0))
     for pid in result['pids']:
-      await cache_invalidate(pid['domain_id'], str(pid['pid']))
-      logger.debug('Invalidated %s/%s', pid['domain_id'], str(pid['pid']))
+        await cache_invalidate(pid['domain_id'], str(pid['pid']))
+        logger.debug('Invalidated %s/%s', pid['domain_id'], str(pid['pid']))
     config['last_update_at'] = result['time']
     await save_config()
-
 
 async def daemon():
     async with VJ4Session(config['server_url']) as session:

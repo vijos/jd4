@@ -23,7 +23,7 @@ CHUNK_SIZE = 32768
 MAX_STDERR_SIZE = 8192
 WAIT_JITTER_NS = 5000000
 PROCESS_LIMIT = 32
-DEFAULT_MEM_KB = 524288
+DEFAULT_MEM_KB = 262144
 
 def get_idle():
     return float(read_text_file('/proc/uptime').split()[1])
@@ -124,7 +124,7 @@ class LegacyCase(CaseBase):
 
 class APlusBCase(CaseBase):
     def __init__(self, a, b):
-        super().__init__(1000000000, 134217728, PROCESS_LIMIT, 10)
+        super().__init__(1000000000, DEFAULT_MEM_KB * 1024, PROCESS_LIMIT, 10)
         self.a = a
         self.b = b
 
