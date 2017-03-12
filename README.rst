@@ -22,7 +22,7 @@ Prerequisites
 The python libraries require kernel headers, libffi-dev and libseccomp. Though
 we are not using seccomp here.
 
-Use the following command to install Python requirements.
+Use the following command to install Python requirements::
 
     pip3 install -r requirements.txt
 
@@ -30,7 +30,7 @@ Configuration
 -------------
 
 Put config.yaml and langs.yaml in the configuration directory, usually in
-``$HOME/.config/jd4``. Examples can be found under the ``examples`` directory.
+``$HOME/.config/jd4``. Examples can be found under the ``examples`` directory::
 
     mkdir -p ~/.config/jd4
     cp examples/config.yaml ~/.config/jd4/
@@ -39,7 +39,7 @@ Put config.yaml and langs.yaml in the configuration directory, usually in
 Running the daemon
 ------------------
 
-We currently run our daemon in tmux with the following command.
+We currently run our daemon in tmux with the following command::
 
     python3 -m jd4.daemon 2>&1 | tee jd4.log
 
@@ -50,6 +50,8 @@ Playground
 
 Playing with the sandbox
 ^^^^^^^^^^^^^^^^^^^^^^^^
+
+::
 
     # python3 -m jd4.sandbox
 
