@@ -8,6 +8,7 @@ from itertools import islice
 from os import cpu_count, mkfifo, path
 from random import randint
 from shutil import copyfileobj
+from socket import socket, AF_UNIX, SOCK_STREAM, SOCK_NONBLOCK
 from zipfile import ZipFile
 
 from jd4._compare import compare_stream
@@ -28,11 +29,12 @@ DEFAULT_MEM_KB = 262144
 def get_idle():
     return float(read_text_file('/proc/uptime').split()[1])
 
-async def accept_and_limit(cgroup, time_limit_ns, memory_limit_bytes, process_limit):
+async def accept_and_limit(cgroup_sock, time_limit_ns, memory_limit_bytes, process_limit):
     loop = get_event_loop()
+    cgroup = CGroup()
     cgroup.memory_limit_bytes = memory_limit_bytes
     cgroup.pids_max = process_limit
-    await cgroup.accept_one()
+    await cgroup.accept(cgroup_sock)
     start_idle = get_idle()
     exit_event = Event()
 
@@ -50,14 +52,15 @@ async def accept_and_limit(cgroup, time_limit_ns, memory_limit_bytes, process_li
                     break
                 except TimeoutError:
                     pass
+            if idle_usage_ns() < time_limit_ns:
+                time_usage_ns = cgroup.cpu_usage_ns
+            else:
+                time_usage_ns = time_limit_ns
+            return time_usage_ns, cgroup.memory_usage_bytes
         finally:
             while cgroup.kill():
                 await sleep(.001)
-        if idle_usage_ns() < time_limit_ns:
-            time_usage_ns = cgroup.cpu_usage_ns
-        else:
-            time_usage_ns = time_limit_ns
-        return time_usage_ns, cgroup.memory_usage_bytes
+            cgroup.close()
 
     return exit_event, loop.create_task(limit_task())
 
@@ -77,22 +80,21 @@ class CaseBase:
         mkfifo(stdout_file)
         stderr_file = path.join(sandbox.in_dir, 'stderr')
         mkfifo(stderr_file)
-        cgroup = CGroup(path.join(sandbox.in_dir, 'cgroup'))
-        try:
-            _, correct, stderr, (exit_event, usage_future), execute_status = await gather(
-                loop.run_in_executor(None, self.do_stdin, stdin_file),
-                loop.run_in_executor(None, self.do_stdout, stdout_file),
-                read_pipe(stderr_file, MAX_STDERR_SIZE),
-                accept_and_limit(cgroup, self.time_limit_ns, self.memory_limit_bytes, self.process_limit),
-                executable.execute(sandbox,
-                                   stdin_file='/in/stdin',
-                                   stdout_file='/in/stdout',
-                                   stderr_file='/in/stderr',
-                                   cgroup_file='/in/cgroup'))
-            exit_event.set()
-            time_usage_ns, memory_usage_bytes = await usage_future
-        finally:
-            cgroup.close()
+        cgroup_sock = socket(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK)
+        cgroup_sock.bind(path.join(sandbox.in_dir, 'cgroup'))
+        cgroup_sock.listen()
+        _, correct, stderr, (exit_event, usage_future), execute_status = await gather(
+            loop.run_in_executor(None, self.do_stdin, stdin_file),
+            loop.run_in_executor(None, self.do_stdout, stdout_file),
+            read_pipe(stderr_file, MAX_STDERR_SIZE),
+            accept_and_limit(cgroup_sock, self.time_limit_ns, self.memory_limit_bytes, self.process_limit),
+            executable.execute(sandbox,
+                               stdin_file='/in/stdin',
+                               stdout_file='/in/stdout',
+                               stderr_file='/in/stderr',
+                               cgroup_file='/in/cgroup'))
+        exit_event.set()
+        time_usage_ns, memory_usage_bytes = await usage_future
         if memory_usage_bytes >= self.memory_limit_bytes:
             status = STATUS_MEMORY_LIMIT_EXCEEDED
             score = 0

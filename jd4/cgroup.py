@@ -2,7 +2,7 @@ import asyncio
 from itertools import chain
 from os import access, geteuid, kill, makedirs, path, rmdir, W_OK
 from signal import SIGKILL
-from socket import socket, AF_UNIX, SOCK_STREAM, SOCK_NONBLOCK, SOL_SOCKET, SO_PEERCRED
+from socket import socket, AF_UNIX, SOCK_STREAM, SOL_SOCKET, SO_PEERCRED
 from subprocess import call
 from sys import __stdin__
 from tempfile import mkdtemp
@@ -39,22 +39,19 @@ def try_init_cgroup():
             logger.error('Cgroup not initialized')
 
 class CGroup:
-    def __init__(self, socket_path):
+    def __init__(self):
         self.cpuacct_cgroup_dir = mkdtemp(prefix='', dir=CPUACCT_CGROUP_ROOT)
         self.memory_cgroup_dir = mkdtemp(prefix='', dir=MEMORY_CGROUP_ROOT)
         self.pids_cgroup_dir = mkdtemp(prefix='', dir=PIDS_CGROUP_ROOT)
-        self.sock = socket(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK)
-        self.sock.bind(socket_path)
-        self.sock.listen()
 
     def close(self):
         rmdir(self.cpuacct_cgroup_dir)
         rmdir(self.memory_cgroup_dir)
         rmdir(self.pids_cgroup_dir)
 
-    async def accept_one(self):
+    async def accept(self, sock):
         loop = asyncio.get_event_loop()
-        accept_sock, _ = await loop.sock_accept(self.sock)
+        accept_sock, _ = await loop.sock_accept(sock)
         pid = accept_sock.getsockopt(SOL_SOCKET, SO_PEERCRED)
         write_text_file(path.join(self.cpuacct_cgroup_dir, 'tasks'), str(pid))
         write_text_file(path.join(self.memory_cgroup_dir, 'tasks'), str(pid))
