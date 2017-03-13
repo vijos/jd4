@@ -1,7 +1,7 @@
 c:
     type: compiler
     compiler_file: /usr/bin/gcc
-    compiler_args: gcc -O2 -Wall -std=c99 -o /out/foo /in/foo.c
+    compiler_args: gcc -O2 -Wall -std=c99 -o /out/foo /in/foo.c -lm
     code_file: foo.c
     execute_file: foo
     execute_args: foo
@@ -9,7 +9,7 @@ c:
 cc:
     type: compiler
     compiler_file: /usr/bin/g++
-    compiler_args: g++ -O2 -Wall -std=c++11 -o /out/foo /in/foo.cc
+    compiler_args: g++ -O2 -Wall -std=c++11 -o /out/foo /in/foo.cc -lm
     code_file: foo.cc
     execute_file: foo
     execute_args: foo
