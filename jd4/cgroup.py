@@ -2,7 +2,7 @@ from asyncio import get_event_loop, sleep, wait_for, TimeoutError
 from itertools import chain
 from os import access, cpu_count, geteuid, kill, makedirs, path, rmdir, W_OK
 from signal import SIGKILL
-from socket import socket, AF_UNIX, SOCK_STREAM, SOCK_NONBLOCK, SOL_SOCKET, SO_PEERCRED
+from socket import socket, AF_UNIX, SOCK_STREAM, SOL_SOCKET, SO_PEERCRED
 from subprocess import call
 from sys import __stdin__
 from tempfile import mkdtemp
@@ -109,31 +109,27 @@ def enter_cgroup(socket_path):
 def _get_idle():
     return float(read_text_file('/proc/uptime').split()[1])
 
-async def wait_cgroup(socket_path, execute_task, time_limit_ns, memory_limit_bytes, process_limit):
-    loop = get_event_loop()
-    with socket(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK) as cgroup_sock:
-        cgroup_sock.bind(socket_path)
-        cgroup_sock.listen()
-        cgroup = CGroup()
-        try:
-            cgroup.memory_limit_bytes = memory_limit_bytes
-            cgroup.pids_max = process_limit
-            await cgroup.accept(cgroup_sock)
-            start_idle = _get_idle()
+async def wait_cgroup(sock, execute_task, time_limit_ns, memory_limit_bytes, process_limit):
+    cgroup = CGroup()
+    try:
+        cgroup.memory_limit_bytes = memory_limit_bytes
+        cgroup.pids_max = process_limit
+        await cgroup.accept(sock)
+        start_idle = _get_idle()
 
-            while True:
-                cpu_usage_ns = cgroup.cpu_usage_ns
-                idle_usage_ns = int((_get_idle() - start_idle) / cpu_count() * 1e9)
-                time_usage_ns = max(cpu_usage_ns, idle_usage_ns)
-                time_remain_ns = time_limit_ns - time_usage_ns
-                if time_remain_ns <= 0:
-                    return time_usage_ns, cgroup.memory_usage_bytes
-                try:
-                    await wait_for(execute_task, (time_remain_ns + WAIT_JITTER_NS) / 1e9)
-                    return cgroup.cpu_usage_ns, cgroup.memory_usage_bytes
-                except TimeoutError:
-                    pass
-        finally:
-            while cgroup.kill():
-                await sleep(.001)
-            cgroup.close()
+        while True:
+            cpu_usage_ns = cgroup.cpu_usage_ns
+            idle_usage_ns = int((_get_idle() - start_idle) / cpu_count() * 1e9)
+            time_usage_ns = max(cpu_usage_ns, idle_usage_ns)
+            time_remain_ns = time_limit_ns - time_usage_ns
+            if time_remain_ns <= 0:
+                return time_usage_ns, cgroup.memory_usage_bytes
+            try:
+                await wait_for(execute_task, (time_remain_ns + WAIT_JITTER_NS) / 1e9)
+                return cgroup.cpu_usage_ns, cgroup.memory_usage_bytes
+            except TimeoutError:
+                pass
+    finally:
+        while cgroup.kill():
+            await sleep(.001)
+        cgroup.close()
