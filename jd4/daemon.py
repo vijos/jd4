@@ -1,4 +1,4 @@
-from asyncio import gather, get_event_loop, sleep
+from asyncio import gather, get_event_loop, sleep, LifoQueue
 from io import BytesIO
 
 from jd4.api import VJ4Session
@@ -8,14 +8,12 @@ from jd4.cgroup import try_init_cgroup
 from jd4.config import config, save_config
 from jd4.langs import langs
 from jd4.log import logger
-from jd4.sandbox import create_sandbox
+from jd4.sandbox import create_sandboxes
 from jd4.status import STATUS_COMPILE_ERROR, STATUS_SYSTEM_ERROR, STATUS_JUDGING, STATUS_COMPILING
 
 RETRY_DELAY_SEC = 30
 
-try_init_cgroup()
-loop = get_event_loop()
-sandbox = loop.run_until_complete(create_sandbox())
+sandbox_pool = LifoQueue()
 
 class CompileError(Exception):
     pass
@@ -87,7 +85,11 @@ class JudgeHandler:
         build_fn = langs.get(lang)
         if not build_fn:
             raise SystemError('Unsupported language: {}'.format(lang))
-        package, message = await build_fn(sandbox, self.request.pop('code').encode())
+        sandbox = await sandbox_pool.get()
+        try:
+            package, message = await build_fn(sandbox, self.request.pop('code').encode())
+        finally:
+            sandbox_pool.put_nowait(sandbox)
         self.next(compiler_text=message)
         if not package:
             logger.info('Compile error: %s', message)
@@ -95,14 +97,26 @@ class JudgeHandler:
         return package
 
     async def judge(self, cases_file, package):
+        loop = get_event_loop()
         self.next(status=STATUS_JUDGING, progress=0)
         cases = list(read_legacy_cases(cases_file))
         total_status = 0
         total_score = 0
         total_time_usage_ns = 0
         total_memory_usage_bytes = 0
-        for index, case in enumerate(cases):
-            status, score, time_usage_ns, memory_usage_bytes, stderr = await case.judge(sandbox, package)
+
+        async def pool_judge(case):
+            sandbox = await sandbox_pool.get()
+            try:
+                return await case.judge(sandbox, package)
+            finally:
+                sandbox_pool.put_nowait(sandbox)
+
+        judge_tasks = list()
+        for case in cases:
+            judge_tasks.append(loop.create_task(pool_judge(case)))
+        for index, judge_task in enumerate(judge_tasks):
+            status, score, time_usage_ns, memory_usage_bytes, stderr = await judge_task
             self.next(status=STATUS_JUDGING,
                       case={'status': status,
                             'score': score,
@@ -139,6 +153,12 @@ async def update_problem_data(session):
     await save_config()
 
 async def daemon():
+    try_init_cgroup()
+    parallelism = config.get('parallelism', 1)
+    logger.info('Using parallelism: %d', parallelism)
+    for sandbox in await create_sandboxes(parallelism):
+        sandbox_pool.put_nowait(sandbox)
+
     async with VJ4Session(config['server_url']) as session:
         while True:
             try:
@@ -150,5 +170,4 @@ async def daemon():
             logger.info('Retrying after %d seconds', RETRY_DELAY_SEC)
             await sleep(RETRY_DELAY_SEC)
 
-# TODO(iceboy): maintain cache (invalidate, background download).
-loop.run_until_complete(daemon())
+get_event_loop().run_until_complete(daemon())

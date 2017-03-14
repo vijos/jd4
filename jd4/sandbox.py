@@ -1,5 +1,5 @@
 import cloudpickle
-from asyncio import get_event_loop, open_connection
+from asyncio import gather, get_event_loop, open_connection
 from butter.clone import unshare, CLONE_NEWNS, CLONE_NEWUTS, CLONE_NEWIPC, CLONE_NEWUSER, CLONE_NEWPID, CLONE_NEWNET
 from butter.system import mount, pivot_root, umount, MS_BIND, MS_NOSUID, MS_RDONLY, MS_REMOUNT
 from os import chdir, fork, getegid, geteuid, listdir, makedirs, mkdir, path, remove, readlink, rmdir, \
@@ -69,23 +69,7 @@ class Sandbox:
         return await self.marshal(lambda: spawnve(
             P_WAIT, '/bin/bash', ['bunny'], {'PATH': '/usr/bin:/bin'}))
 
-async def create_sandbox(*, fork_twice=True, mount_proc=True):
-    sandbox_dir = mkdtemp(prefix='jd4.sandbox.')
-    root_dir = path.join(sandbox_dir, 'root')
-    mkdir(root_dir)
-    in_dir = path.join(sandbox_dir, 'in')
-    mkdir(in_dir)
-    out_dir = path.join(sandbox_dir, 'out')
-    mkdir(out_dir)
-    parent_socket, child_socket = socketpair()
-
-    # Fork child and unshare.
-    pid = fork()
-    if pid != 0:
-        child_socket.close()
-        reader, writer = await open_connection(sock=parent_socket)
-        return Sandbox(pid, sandbox_dir, in_dir, out_dir, reader, writer)
-    parent_socket.close()
+def _handle_child(child_socket, root_dir, in_dir, out_dir, *, fork_twice=True, mount_proc=True):
     host_euid = geteuid()
     host_egid = getegid()
     unshare(CLONE_NEWNS | CLONE_NEWUTS | CLONE_NEWIPC |
@@ -146,6 +130,38 @@ async def create_sandbox(*, fork_twice=True, mount_proc=True):
         socket_file.write(pack('I', len(data)))
         socket_file.write(data)
         socket_file.flush()
+
+def create_sandboxes(n):
+    parent_sockets = list()
+    sandbox_params = list()
+    for i in range(n):
+        sandbox_dir = mkdtemp(prefix='jd4.sandbox.')
+        root_dir = path.join(sandbox_dir, 'root')
+        mkdir(root_dir)
+        in_dir = path.join(sandbox_dir, 'in')
+        mkdir(in_dir)
+        out_dir = path.join(sandbox_dir, 'out')
+        mkdir(out_dir)
+        parent_socket, child_socket = socketpair()
+        parent_sockets.append(parent_socket)
+
+        pid = fork()
+        if pid == 0:
+            for parent_socket in parent_sockets:
+                parent_socket.close()
+            _handle_child(child_socket, root_dir, in_dir, out_dir)
+        child_socket.close()
+        sandbox_params.append((pid, sandbox_dir, in_dir, out_dir, parent_socket))
+
+    async def helper(pid, sandbox_dir, in_dir, out_dir, parent_socket):
+        reader, writer = await open_connection(sock=parent_socket)
+        return Sandbox(pid, sandbox_dir, in_dir, out_dir, reader, writer)
+
+    return gather(*[helper(*sp) for sp in sandbox_params])
+
+async def create_sandbox():
+    sandbox, = await create_sandboxes(1)
+    return sandbox
 
 if __name__ == '__main__':
     async def main():
