@@ -6,7 +6,6 @@ from socket import socket, AF_UNIX, SOCK_STREAM, SOCK_NONBLOCK, SOL_SOCKET, SO_P
 from subprocess import call
 from sys import __stdin__
 from tempfile import mkdtemp
-from time import sleep
 
 from jd4.log import logger
 from jd4.util import read_text_file, write_text_file
