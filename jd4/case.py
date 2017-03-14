@@ -8,16 +8,17 @@ from itertools import islice
 from os import mkfifo, path
 from random import randint
 from shutil import copyfileobj
+from socket import socket, AF_UNIX, SOCK_STREAM, SOCK_NONBLOCK
 from zipfile import ZipFile
 
 from jd4._compare import compare_stream
-from jd4.cgroup import CGroup, try_init_cgroup, wait_cgroup
+from jd4.cgroup import try_init_cgroup, wait_cgroup
 from jd4.compile import Compiler
 from jd4.status import STATUS_ACCEPTED, STATUS_WRONG_ANSWER, STATUS_RUNTIME_ERROR, \
                        STATUS_TIME_LIMIT_EXCEEDED, STATUS_MEMORY_LIMIT_EXCEEDED
 from jd4.log import logger
 from jd4.sandbox import create_sandbox
-from jd4.util import read_pipe, read_text_file
+from jd4.util import read_pipe
 
 CHUNK_SIZE = 32768
 MAX_STDERR_SIZE = 8192
@@ -40,23 +41,25 @@ class CaseBase:
         mkfifo(stdout_file)
         stderr_file = path.join(sandbox.in_dir, 'stderr')
         mkfifo(stderr_file)
-        cgroup_file = path.join(sandbox.in_dir, 'cgroup')
+        cgroup_sock = socket(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK)
+        cgroup_sock.bind(path.join(sandbox.in_dir, 'cgroup'))
+        cgroup_sock.listen()
         execute_task = loop.create_task(executable.execute(
             sandbox,
             stdin_file='/in/stdin',
             stdout_file='/in/stdout',
             stderr_file='/in/stderr',
             cgroup_file='/in/cgroup'))
-        _, correct, stderr, execute_status, (time_usage_ns, memory_usage_bytes) = await gather(
-            loop.run_in_executor(None, self.do_stdin, stdin_file),
-            loop.run_in_executor(None, self.do_stdout, stdout_file),
-            read_pipe(stderr_file, MAX_STDERR_SIZE),
-            execute_task,
-            wait_cgroup(cgroup_file,
-                        execute_task,
-                        self.time_limit_ns,
-                        self.memory_limit_bytes,
-                        self.process_limit))
+        _, correct, stderr, execute_status, (time_usage_ns, memory_usage_bytes) = \
+            await gather(loop.run_in_executor(None, self.do_stdin, stdin_file),
+                         loop.run_in_executor(None, self.do_stdout, stdout_file),
+                         read_pipe(stderr_file, MAX_STDERR_SIZE),
+                         execute_task,
+                         wait_cgroup(cgroup_sock,
+                                     execute_task,
+                                     self.time_limit_ns,
+                                     self.memory_limit_bytes,
+                                     self.process_limit))
         if memory_usage_bytes >= self.memory_limit_bytes:
             status = STATUS_MEMORY_LIMIT_EXCEEDED
             score = 0
