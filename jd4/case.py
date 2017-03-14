@@ -24,16 +24,6 @@ CHUNK_SIZE = 32768
 MAX_STDERR_SIZE = 8192
 PROCESS_LIMIT = 32
 DEFAULT_MEM_KB = 262144
-PARALLELISM = 4
-
-sandbox_queue = LifoQueue()
-
-async def pool_judge(case, package):
-    sandbox = await sandbox_queue.get()
-    try:
-        return await case.judge(sandbox, package)
-    finally:
-        sandbox_queue.put_nowait(sandbox)
 
 class CaseBase:
     def __init__(self, time_limit_ns, memory_limit_bytes, process_limit, score):
@@ -140,24 +130,17 @@ def read_legacy_cases(file):
 if __name__ == '__main__':
     async def main():
         try_init_cgroup()
-        for _ in range(PARALLELISM):
-            sandbox_queue.put_nowait(await create_sandbox())
+        sandbox = await create_sandbox()
         gcc = Compiler('/usr/bin/gcc', ['gcc', '-std=c99', '-o', '/out/foo', '/in/foo.c'],
                        'foo.c', 'foo', ['foo'])
-        sandbox = await sandbox_queue.get()
-        try:
-            await gcc.prepare(sandbox, b"""#include <stdio.h>
+        await gcc.prepare(sandbox, b"""#include <stdio.h>
 int main(void) {
     int a, b;
     scanf("%d%d", &a, &b);
     printf("%d\\n", a + b);
 }""")
-            package, _ = await gcc.build(sandbox)
-        finally:
-            sandbox_queue.put_nowait(sandbox)
-        for result in await gather(*[pool_judge(APlusBCase(randint(0, 32767),
-                                                           randint(0, 32767)), package)
-                                     for _ in range(2000)]):
-            logger.info(result)
+        package, _ = await gcc.build(sandbox)
+        for case in read_legacy_cases('examples/1000.zip'):
+            logger.info(await case.judge(sandbox, package))
 
     get_event_loop().run_until_complete(main())
