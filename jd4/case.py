@@ -1,12 +1,11 @@
 import pyximport; pyximport.install()
 
 import csv
-from asyncio import gather, get_event_loop, LifoQueue
+from asyncio import gather, get_event_loop
 from functools import partial
 from io import BytesIO, TextIOWrapper
 from itertools import islice
 from os import mkfifo, path
-from random import randint
 from shutil import copyfileobj
 from socket import socket, AF_UNIX, SOCK_STREAM, SOCK_NONBLOCK
 from zipfile import ZipFile
