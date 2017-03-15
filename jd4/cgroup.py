@@ -1,4 +1,4 @@
-from asyncio import get_event_loop, sleep, wait_for, TimeoutError
+from asyncio import get_event_loop, shield, sleep, wait_for, TimeoutError
 from itertools import chain
 from os import access, cpu_count, geteuid, kill, makedirs, path, rmdir, W_OK
 from signal import SIGKILL
@@ -125,7 +125,7 @@ async def wait_cgroup(sock, execute_task, time_limit_ns, memory_limit_bytes, pro
             if time_remain_ns <= 0:
                 return time_usage_ns, cgroup.memory_usage_bytes
             try:
-                await wait_for(execute_task, (time_remain_ns + WAIT_JITTER_NS) / 1e9)
+                await wait_for(shield(execute_task), (time_remain_ns + WAIT_JITTER_NS) / 1e9)
                 return cgroup.cpu_usage_ns, cgroup.memory_usage_bytes
             except TimeoutError:
                 pass
