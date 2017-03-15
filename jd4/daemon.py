@@ -1,4 +1,4 @@
-from asyncio import gather, get_event_loop, sleep, LifoQueue
+from asyncio import get_event_loop, sleep, LifoQueue
 from io import BytesIO
 
 from jd4.api import VJ4Session
@@ -61,23 +61,26 @@ class JudgeHandler:
         await update_problem_data(self.session)
 
     async def submission(self):
+        loop = get_event_loop()
         domain_id = self.request.pop('domain_id')
         pid = self.request.pop('pid')
         rid = self.request.pop('rid')
         logger.info('Submission: %s, %s, %s', domain_id, pid, rid)
-        cases_file, package = await gather(cache_open(self.session, domain_id, pid), self.build())
-        try:
+        cases_file_task = loop.create_task(cache_open(self.session, domain_id, pid))
+        package = await self.build()
+        with await cases_file_task as cases_file:
             await self.judge(cases_file, package)
-        finally:
-            cases_file.close()
 
     async def pretest(self):
+        loop = get_event_loop()
         domain_id = self.request.pop('domain_id')
         pid = self.request.pop('pid')
         rid = self.request.pop('rid')
         logger.info('Pretest: %s, %s, %s', domain_id, pid, rid)
-        cases_data, package = await gather(self.session.record_pretest_data(rid), self.build())
-        await self.judge(BytesIO(cases_data), package)
+        cases_data_task = loop.create_task(self.session.record_pretest_data(rid))
+        package = await self.build()
+        with BytesIO(await cases_data_task) as cases_file:
+            await self.judge(cases_file, package)
 
     async def build(self):
         lang = self.request.pop('lang')

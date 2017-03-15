@@ -49,16 +49,16 @@ class CaseBase:
             stdout_file='/in/stdout',
             stderr_file='/in/stderr',
             cgroup_file='/in/cgroup'))
-        _, correct, stderr, execute_status, (time_usage_ns, memory_usage_bytes) = \
-            await gather(loop.run_in_executor(None, self.do_stdin, stdin_file),
-                         loop.run_in_executor(None, self.do_stdout, stdout_file),
-                         read_pipe(stderr_file, MAX_STDERR_SIZE),
-                         execute_task,
-                         wait_cgroup(cgroup_sock,
-                                     execute_task,
-                                     self.time_limit_ns,
-                                     self.memory_limit_bytes,
-                                     self.process_limit))
+        others_task = gather(loop.run_in_executor(None, self.do_stdin, stdin_file),
+                             loop.run_in_executor(None, self.do_stdout, stdout_file),
+                             read_pipe(stderr_file, MAX_STDERR_SIZE),
+                             wait_cgroup(cgroup_sock,
+                                         execute_task,
+                                         self.time_limit_ns,
+                                         self.memory_limit_bytes,
+                                         self.process_limit))
+        execute_status = await execute_task
+        _, correct, stderr, (time_usage_ns, memory_usage_bytes) = await others_task
         if memory_usage_bytes >= self.memory_limit_bytes:
             status = STATUS_MEMORY_LIMIT_EXCEEDED
             score = 0
