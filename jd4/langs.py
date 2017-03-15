@@ -1,6 +1,6 @@
 import shlex
 from appdirs import user_config_dir
-from asyncio import gather
+from asyncio import get_event_loop
 from functools import partial
 from os import mkfifo, path
 from ruamel import yaml
@@ -14,12 +14,13 @@ _LANGS_FILE = path.join(_CONFIG_DIR, 'langs.yaml')
 _MAX_OUTPUT = 8192
 
 async def _compiler_build(compiler, sandbox, code):
+    loop = get_event_loop()
     await compiler.prepare(sandbox, code)
     output_file = path.join(sandbox.in_dir, 'output')
     mkfifo(output_file)
-    (package, status), output = await gather(
-        compiler.build(sandbox, stdout_file='/in/output', stderr_file='/in/output'),
-        read_pipe(output_file, _MAX_OUTPUT))
+    output_task = loop.create_task(read_pipe(output_file, _MAX_OUTPUT))
+    package, status = await compiler.build(sandbox, stdout_file='/in/output', stderr_file='/in/output')
+    output = await output_task
     return package, output.decode(encoding='utf-8', errors='replace')
 
 async def _interpreter_build(interpreter, _, code):
