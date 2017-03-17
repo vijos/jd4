@@ -15,11 +15,6 @@ MEMORY_CGROUP_ROOT = '/sys/fs/cgroup/memory/jd4'
 PIDS_CGROUP_ROOT = '/sys/fs/cgroup/pids/jd4'
 WAIT_JITTER_NS = 5000000
 
-WAIT_JITTER_NS = 5000000
-PROCESS_LIMIT = 32
-DEFAULT_TIME_MS = 1000
-DEFAULT_MEM_KB = 262144
-
 def try_init_cgroup():
     euid = geteuid()
     if euid == 0:
