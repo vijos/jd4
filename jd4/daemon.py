@@ -32,23 +32,23 @@ class JudgeHandler:
         self.request = request
         self.ws = ws
         self.tag = self.request.pop('tag', None)
+        self.event = self.request.pop('event', None)
+        self.type = self.request.pop('type', None)
 
     async def handle(self):
         try:
-            event = self.request.pop('event', None)
-            if event:
-                if event == 'problem_data_change':
+            if self.event:
+                if self.event == 'problem_data_change':
                     await self.update_problem_data()
                 else:
-                    raise SystemError('Unknown event: {}'.format(event))
+                    raise SystemError('Unknown event: {}'.format(self.event))
             else:
-                self.type = self.request.pop('type')
                 if self.type == 0:
                     await self.submission()
                 elif self.type == 1:
                     await self.pretest()
                 else:
-                    raise SystemError('Unsupported type: {}'.format(type))
+                    raise SystemError('Unsupported type: {}'.format(self.type))
             for key in self.request:
                 logger.warning('Unused key in judge request: %s', key)
         except CompileError as e:
@@ -109,17 +109,16 @@ class JudgeHandler:
         total_time_usage_ns = 0
         total_memory_usage_bytes = 0
         for index, case in enumerate(cases):
-            status, score, time_usage_ns, memory_usage_bytes, stderr = await case.judge(sandbox, package)
+            status, score, time_usage_ns, memory_usage_bytes, stderr =
+                await case.judge(sandbox, package)
+            case = {'status': status,
+                    'score': score,
+                    'time_ms': time_usage_ns // 1000000,
+                    'memory_kb': memory_usage_bytes // 1024}
             if self.type == 1:
-                judge_text = stderr.decode(encoding='utf-8', errors='replace')
-            else:
-                judge_text = ''
+                case['judge_text'] = stderr.decode(encoding='utf-8', errors='replace')
             self.next(status=STATUS_JUDGING,
-                      case={'status': status,
-                            'score': score,
-                            'time_ms': time_usage_ns // 1000000,
-                            'memory_kb': memory_usage_bytes // 1024,
-                            'judge_text': judge_text},
+                      case=case,
                       progress=(index + 1) * 100 // len(cases))
             logger.debug('Case %d: %d, %g, %g, %g, %s',
                          index, status, score, time_usage_ns / 1000000, memory_usage_bytes / 1024, stderr)

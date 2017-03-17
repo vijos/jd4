@@ -91,7 +91,7 @@ class LegacyCase(CaseBase):
 
 class APlusBCase(CaseBase):
     def __init__(self, a, b):
-        super().__init__(DEFAULT_TIME_MS * 1e6, DEFAULT_MEM_KB * 1024, PROCESS_LIMIT, 10)
+        super().__init__(DEFAULT_TIME_MS * 1000000, DEFAULT_MEM_KB * 1024, PROCESS_LIMIT, 10)
         self.a = a
         self.b = b
 
