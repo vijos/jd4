@@ -67,11 +67,7 @@ async def pool_build(lang, code):
     build_fn = _langs.get(lang)
     if not build_fn:
         raise SystemError('Unsupported language: {}'.format(lang))
-    sandbox = await _sandbox_pool.get()
-    try:
-        return await build_fn(sandbox, code)
-    finally:
-        _sandbox_pool.put_nowait(sandbox)
+    return await build_fn(code)
 
 async def pool_judge(package, case):
     sandbox = await _sandbox_pool.get()
