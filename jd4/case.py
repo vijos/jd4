@@ -6,6 +6,7 @@ from functools import partial
 from io import BytesIO, TextIOWrapper
 from itertools import islice
 from os import mkfifo, path
+from random import randint
 from shutil import copyfileobj
 from socket import socket, AF_UNIX, SOCK_STREAM, SOCK_NONBLOCK
 from zipfile import ZipFile
@@ -141,5 +142,7 @@ int main(void) {
         package, _ = await gcc.build(sandbox)
         for case in read_legacy_cases('examples/1000.zip'):
             logger.info(await case.judge(sandbox, package))
-
+        for i in range(10):
+            logger.info(await APlusBCase(randint(0, 32767),
+                                         randint(0, 32767)).judge(sandbox, package))
     get_event_loop().run_until_complete(main())
