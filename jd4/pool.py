@@ -33,7 +33,7 @@ async def _compiler_build(compiler, code):
         _sandbox_pool.put_nowait(sandbox)
 
 async def _interpreter_build(interpreter, code):
-    return interpreter.build(code), ''
+    return interpreter.build(code.encode()), ''
 
 async def _init():
     parallelism = config.get('parallelism', 1)
