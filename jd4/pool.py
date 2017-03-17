@@ -1,9 +1,10 @@
 import shlex
 from appdirs import user_config_dir
-from asyncio import get_event_loop, LifoQueue
+from asyncio import gather, get_event_loop, LifoQueue
 from functools import partial
 from os import mkfifo, path
 from ruamel import yaml
+from socket import socket, AF_UNIX, SOCK_STREAM, SOCK_NONBLOCK
 
 from jd4.cgroup import wait_cgroup
 from jd4.compile import Compiler, Interpreter

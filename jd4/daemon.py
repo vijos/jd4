@@ -115,6 +115,8 @@ class JudgeHandler:
                     'memory_kb': memory_usage_bytes // 1024}
             if self.type == 1:
                 case['judge_text'] = stderr.decode(encoding='utf-8', errors='replace')
+            else:
+                case['judge_text'] = ''
             self.next(status=STATUS_JUDGING,
                       case=case,
                       progress=(index + 1) * 100 // len(cases))
