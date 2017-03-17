@@ -22,7 +22,7 @@ async def _compiler_build(compiler, code):
     loop = get_event_loop()
     sandbox = await _sandbox_pool.get()
     try:
-        await compiler.prepare(sandbox, code)
+        await compiler.prepare(sandbox, code.encode())
         output_file = path.join(sandbox.in_dir, 'output')
         mkfifo(output_file)
         output_task = loop.create_task(read_pipe(output_file, _MAX_OUTPUT))
@@ -33,7 +33,7 @@ async def _compiler_build(compiler, code):
         _sandbox_pool.put_nowait(sandbox)
 
 async def _interpreter_build(interpreter, code):
-    return interpreter.build(code), None
+    return interpreter.build(code), ''
 
 async def _init():
     parallelism = config.get('parallelism', 1)

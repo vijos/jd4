@@ -82,7 +82,7 @@ class JudgeHandler:
     async def build(self):
         lang = self.request.pop('lang')
         code = self.request.pop('code')
-        package, message = await pool_build(lang, code.encode())
+        package, message = await pool_build(lang, code)
         self.next(status=STATUS_COMPILING)
         self.next(compiler_text=message)
         if not package:
