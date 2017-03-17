@@ -1,4 +1,4 @@
-from asyncio import gather, get_event_loop, sleep
+from asyncio import get_event_loop, sleep
 from io import BytesIO
 
 from jd4.api import VJ4Session
@@ -6,16 +6,11 @@ from jd4.case import read_legacy_cases
 from jd4.cache import cache_open, cache_invalidate
 from jd4.cgroup import try_init_cgroup
 from jd4.config import config, save_config
-from jd4.langs import langs
 from jd4.log import logger
-from jd4.sandbox import create_sandbox
+from jd4.pool import pool_build, pool_judge
 from jd4.status import STATUS_COMPILE_ERROR, STATUS_SYSTEM_ERROR, STATUS_JUDGING, STATUS_COMPILING
 
 RETRY_DELAY_SEC = 30
-
-try_init_cgroup()
-loop = get_event_loop()
-sandbox = loop.run_until_complete(create_sandbox())
 
 class CompileError(Exception):
     def __init__(self, message, time_usage_ns, memory_usage_bytes):
@@ -69,32 +64,32 @@ class JudgeHandler:
         await update_problem_data(self.session)
 
     async def submission(self):
+        loop = get_event_loop()
         domain_id = self.request.pop('domain_id')
         pid = self.request.pop('pid')
         rid = self.request.pop('rid')
         logger.info('Submission: %s, %s, %s', domain_id, pid, rid)
-        cases_file, package = await gather(cache_open(self.session, domain_id, pid), self.build())
-        try:
+        cases_file_task = loop.create_task(cache_open(self.session, domain_id, pid))
+        package = await self.build()
+        with await cases_file_task as cases_file:
             await self.judge(cases_file, package)
-        finally:
-            cases_file.close()
 
     async def pretest(self):
+        loop = get_event_loop()
         domain_id = self.request.pop('domain_id')
         pid = self.request.pop('pid')
         rid = self.request.pop('rid')
         logger.info('Pretest: %s, %s, %s', domain_id, pid, rid)
-        cases_data, package = await gather(self.session.record_pretest_data(rid), self.build())
-        await self.judge(BytesIO(cases_data), package)
+        cases_data_task = loop.create_task(self.session.record_pretest_data(rid))
+        package = await self.build()
+        with BytesIO(await cases_data_task) as cases_file:
+            await self.judge(cases_file, package)
 
     async def build(self):
-        lang = self.request.pop('lang')
         self.next(status=STATUS_COMPILING)
-        build_fn = langs.get(lang)
-        if not build_fn:
-            raise SystemError('Unsupported language: {}'.format(lang))
-        package, message, time_usage_ns, memory_usage_bytes = \
-            await build_fn(sandbox, self.request.pop('code').encode())
+        lang = self.request.pop('lang')
+        code = self.request.pop('code')
+        package, message, time_usage_ns, memory_usage_bytes = await pool_build(lang, code)
         self.next(compiler_text=message)
         if not package:
             logger.debug('Compile error: %s', message)
@@ -102,15 +97,18 @@ class JudgeHandler:
         return package
 
     async def judge(self, cases_file, package):
+        loop = get_event_loop()
         self.next(status=STATUS_JUDGING, progress=0)
         cases = list(read_legacy_cases(cases_file))
         total_status = 0
         total_score = 0
         total_time_usage_ns = 0
         total_memory_usage_bytes = 0
-        for index, case in enumerate(cases):
-            status, score, time_usage_ns, memory_usage_bytes, stderr =
-                await case.judge(sandbox, package)
+        judge_tasks = list()
+        for case in cases:
+            judge_tasks.append(loop.create_task(pool_judge(package, case)))
+        for index, judge_task in enumerate(judge_tasks):
+            status, score, time_usage_ns, memory_usage_bytes, stderr = await judge_task
             case = {'status': status,
                     'score': score,
                     'time_ms': time_usage_ns // 1000000,
@@ -149,6 +147,8 @@ async def update_problem_data(session):
     await save_config()
 
 async def daemon():
+    try_init_cgroup()
+
     async with VJ4Session(config['server_url']) as session:
         while True:
             try:
@@ -160,5 +160,4 @@ async def daemon():
             logger.info('Retrying after %d seconds', RETRY_DELAY_SEC)
             await sleep(RETRY_DELAY_SEC)
 
-# TODO(iceboy): maintain cache (invalidate, background download).
-loop.run_until_complete(daemon())
+get_event_loop().run_until_complete(daemon())

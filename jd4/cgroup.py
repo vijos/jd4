@@ -1,9 +1,8 @@
-import asyncio
-from asyncio import Event, get_event_loop, sleep, wait_for, TimeoutError
+from asyncio import get_event_loop, shield, sleep, wait_for, TimeoutError
 from itertools import chain
 from os import access, cpu_count, geteuid, kill, makedirs, path, rmdir, W_OK
 from signal import SIGKILL
-from socket import socket, AF_UNIX, SOCK_STREAM, SOCK_NONBLOCK, SOL_SOCKET, SO_PEERCRED
+from socket import socket, AF_UNIX, SOCK_STREAM, SOL_SOCKET, SO_PEERCRED
 from subprocess import call
 from sys import __stdin__
 from tempfile import mkdtemp
@@ -14,6 +13,7 @@ from jd4.util import read_text_file, write_text_file
 CPUACCT_CGROUP_ROOT = '/sys/fs/cgroup/cpuacct/jd4'
 MEMORY_CGROUP_ROOT = '/sys/fs/cgroup/memory/jd4'
 PIDS_CGROUP_ROOT = '/sys/fs/cgroup/pids/jd4'
+WAIT_JITTER_NS = 5000000
 
 WAIT_JITTER_NS = 5000000
 PROCESS_LIMIT = 32
@@ -44,22 +44,19 @@ def try_init_cgroup():
             logger.error('Cgroup not initialized')
 
 class CGroup:
-    def __init__(self, socket_path):
+    def __init__(self):
         self.cpuacct_cgroup_dir = mkdtemp(prefix='', dir=CPUACCT_CGROUP_ROOT)
         self.memory_cgroup_dir = mkdtemp(prefix='', dir=MEMORY_CGROUP_ROOT)
         self.pids_cgroup_dir = mkdtemp(prefix='', dir=PIDS_CGROUP_ROOT)
-        self.sock = socket(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK)
-        self.sock.bind(socket_path)
-        self.sock.listen()
 
     def close(self):
         rmdir(self.cpuacct_cgroup_dir)
         rmdir(self.memory_cgroup_dir)
         rmdir(self.pids_cgroup_dir)
 
-    async def accept_one(self):
-        loop = asyncio.get_event_loop()
-        accept_sock, _ = await loop.sock_accept(self.sock)
+    async def accept(self, sock):
+        loop = get_event_loop()
+        accept_sock, _ = await loop.sock_accept(sock)
         pid = accept_sock.getsockopt(SOL_SOCKET, SO_PEERCRED)
         write_text_file(path.join(self.cpuacct_cgroup_dir, 'tasks'), str(pid))
         write_text_file(path.join(self.memory_cgroup_dir, 'tasks'), str(pid))
@@ -114,38 +111,30 @@ def enter_cgroup(socket_path):
         sock.connect(socket_path)
         sock.recv(1)
 
-def get_idle():
+def _get_idle():
     return float(read_text_file('/proc/uptime').split()[1])
 
-async def accept_and_limit(cgroup, time_limit_ns, memory_limit_bytes, process_limit):
-    loop = get_event_loop()
-    cgroup.memory_limit_bytes = memory_limit_bytes
-    cgroup.pids_max = process_limit
-    await cgroup.accept_one()
-    start_idle = get_idle()
-    exit_event = Event()
+async def wait_cgroup(sock, execute_task, time_limit_ns, memory_limit_bytes, process_limit):
+    cgroup = CGroup()
+    try:
+        cgroup.memory_limit_bytes = memory_limit_bytes
+        cgroup.pids_max = process_limit
+        await cgroup.accept(sock)
+        start_idle = _get_idle()
 
-    def idle_usage_ns():
-        return int((get_idle() - start_idle) / cpu_count() * 1e9)
-
-    async def limit_task():
-        try:
-            while True:
-                time_remain_ns = time_limit_ns - max(cgroup.cpu_usage_ns, idle_usage_ns())
-                if time_remain_ns <= 0:
-                    break
-                try:
-                    await wait_for(exit_event.wait(), (time_remain_ns + WAIT_JITTER_NS) / 1e9)
-                    break
-                except TimeoutError:
-                    pass
-        finally:
-            while cgroup.kill():
-                await sleep(.001)
-        if idle_usage_ns() < time_limit_ns:
-            time_usage_ns = cgroup.cpu_usage_ns
-        else:
-            time_usage_ns = time_limit_ns
-        return time_usage_ns, cgroup.memory_usage_bytes
-
-    return exit_event, loop.create_task(limit_task())
+        while True:
+            cpu_usage_ns = cgroup.cpu_usage_ns
+            idle_usage_ns = int((_get_idle() - start_idle) / cpu_count() * 1e9)
+            time_usage_ns = max(cpu_usage_ns, idle_usage_ns)
+            time_remain_ns = time_limit_ns - time_usage_ns
+            if time_remain_ns <= 0:
+                return time_usage_ns, cgroup.memory_usage_bytes
+            try:
+                await wait_for(shield(execute_task), (time_remain_ns + WAIT_JITTER_NS) / 1e9)
+                return cgroup.cpu_usage_ns, cgroup.memory_usage_bytes
+            except TimeoutError:
+                pass
+    finally:
+        while cgroup.kill():
+            await sleep(.001)
+        cgroup.close()

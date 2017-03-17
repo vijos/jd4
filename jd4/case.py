@@ -1,27 +1,29 @@
 import pyximport; pyximport.install()
 
 import csv
-from asyncio import gather, get_event_loop, sleep, TimeoutError
+from asyncio import gather, get_event_loop
 from functools import partial
 from io import BytesIO, TextIOWrapper
 from itertools import islice
 from os import mkfifo, path
 from random import randint
 from shutil import copyfileobj
+from socket import socket, AF_UNIX, SOCK_STREAM, SOCK_NONBLOCK
 from zipfile import ZipFile
 
 from jd4._compare import compare_stream
-from jd4.cgroup import CGroup, try_init_cgroup, accept_and_limit, \
-                       PROCESS_LIMIT, DEFAULT_TIME_MS, DEFAULT_MEM_KB
+from jd4.cgroup import try_init_cgroup, wait_cgroup
 from jd4.compile import Compiler
 from jd4.status import STATUS_ACCEPTED, STATUS_WRONG_ANSWER, STATUS_RUNTIME_ERROR, \
                        STATUS_TIME_LIMIT_EXCEEDED, STATUS_MEMORY_LIMIT_EXCEEDED
 from jd4.log import logger
 from jd4.sandbox import create_sandbox
-from jd4.util import read_pipe, read_text_file
+from jd4.util import read_pipe
 
 CHUNK_SIZE = 32768
 MAX_STDERR_SIZE = 8192
+PROCESS_LIMIT = 32
+DEFAULT_MEM_KB = 262144
 
 class CaseBase:
     def __init__(self, time_limit_ns, memory_limit_bytes, process_limit, score):
@@ -39,22 +41,25 @@ class CaseBase:
         mkfifo(stdout_file)
         stderr_file = path.join(sandbox.in_dir, 'stderr')
         mkfifo(stderr_file)
-        cgroup = CGroup(path.join(sandbox.in_dir, 'cgroup'))
-        try:
-            _, correct, stderr, (exit_event, usage_future), execute_status = await gather(
-                loop.run_in_executor(None, self.do_stdin, stdin_file),
-                loop.run_in_executor(None, self.do_stdout, stdout_file),
-                read_pipe(stderr_file, MAX_STDERR_SIZE),
-                accept_and_limit(cgroup, self.time_limit_ns, self.memory_limit_bytes, self.process_limit),
-                executable.execute(sandbox,
-                                   stdin_file='/in/stdin',
-                                   stdout_file='/in/stdout',
-                                   stderr_file='/in/stderr',
-                                   cgroup_file='/in/cgroup'))
-            exit_event.set()
-            time_usage_ns, memory_usage_bytes = await usage_future
-        finally:
-            cgroup.close()
+        cgroup_sock = socket(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK)
+        cgroup_sock.bind(path.join(sandbox.in_dir, 'cgroup'))
+        cgroup_sock.listen()
+        execute_task = loop.create_task(executable.execute(
+            sandbox,
+            stdin_file='/in/stdin',
+            stdout_file='/in/stdout',
+            stderr_file='/in/stderr',
+            cgroup_file='/in/cgroup'))
+        others_task = gather(loop.run_in_executor(None, self.do_stdin, stdin_file),
+                             loop.run_in_executor(None, self.do_stdout, stdout_file),
+                             read_pipe(stderr_file, MAX_STDERR_SIZE),
+                             wait_cgroup(cgroup_sock,
+                                         execute_task,
+                                         self.time_limit_ns,
+                                         self.memory_limit_bytes,
+                                         self.process_limit))
+        execute_status = await execute_task
+        _, correct, stderr, (time_usage_ns, memory_usage_bytes) = await others_task
         if memory_usage_bytes >= self.memory_limit_bytes:
             status = STATUS_MEMORY_LIMIT_EXCEEDED
             score = 0
