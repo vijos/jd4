@@ -86,9 +86,9 @@ class JudgeHandler:
             await self.judge(cases_file, package)
 
     async def build(self):
-        self.next(status=STATUS_COMPILING)
         lang = self.request.pop('lang')
         code = self.request.pop('code')
+        self.next(status=STATUS_COMPILING)
         package, message, time_usage_ns, memory_usage_bytes = await pool_build(lang, code)
         self.next(compiler_text=message)
         if not package:

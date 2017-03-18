@@ -113,7 +113,7 @@ def _handle_child(child_socket, root_dir, in_dir, out_dir, *, fork_twice=True, m
     umount('old_root', MNT_DETACH)
     rmdir('old_root')
     write_text_file('/etc/passwd', 'icebox:x:1000:1000:icebox:/:/bin/bash\n')
-    bind_mount('/', '/', makedir=False)
+    mount('/', '/', '', MS_BIND | MS_REMOUNT | MS_RDONLY | MS_NOSUID)
 
     # Execute pickles.
     socket_file = child_socket.makefile('rwb')
