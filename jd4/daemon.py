@@ -47,7 +47,7 @@ class JudgeHandler:
             self.end(status=STATUS_COMPILE_ERROR, score=0, time_ms=0, memory_kb=0)
         except Exception as e:
             logger.exception(e)
-            self.next(compiler_text=repr(e))
+            self.next(judge_text=repr(e))
             self.end(status=STATUS_SYSTEM_ERROR, score=0, time_ms=0, memory_kb=0)
 
     async def update_problem_data(self):
@@ -82,8 +82,8 @@ class JudgeHandler:
     async def build(self):
         lang = self.request.pop('lang')
         code = self.request.pop('code')
-        package, message = await pool_build(lang, code)
         self.next(status=STATUS_COMPILING)
+        package, message = await pool_build(lang, code)
         self.next(compiler_text=message)
         if not package:
             logger.info('Compile error: %s', message)
