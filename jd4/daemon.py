@@ -18,34 +18,38 @@ class CompileError(Exception):
         self.time_usage_ns = time_usage_ns
         self.memory_usage_bytes = memory_usage_bytes
 
-class SystemError(Exception):
-    pass
-
 class JudgeHandler:
     def __init__(self, session, request, ws):
         self.session = session
         self.request = request
         self.ws = ws
-        self.tag = self.request.pop('tag', None)
-        self.event = self.request.pop('event', None)
-        self.type = self.request.pop('type', None)
 
     async def handle(self):
+        event = self.request.pop('event', None)
+        if not event:
+            await self.do_record()
+        elif event == 'problem_data_change':
+            await self.update_problem_data()
+        else:
+            logger.warning('Unknown event: %s', event)
+        for key in self.request:
+            logger.warning('Unused key in judge request: %s', key)
+
+    async def do_record(self):
+        self.tag = self.request.pop('tag')
+        self.type = self.request.pop('type')
+        self.domain_id = self.request.pop('domain_id')
+        self.pid = self.request.pop('pid')
+        self.rid = self.request.pop('rid')
+        self.lang = self.request.pop('lang')
+        self.code = self.request.pop('code')
         try:
-            if self.event:
-                if self.event == 'problem_data_change':
-                    await self.update_problem_data()
-                else:
-                    raise SystemError('Unknown event: {}'.format(self.event))
+            if self.type == 0:
+                await self.do_submission()
+            elif self.type == 1:
+                await self.do_pretest()
             else:
-                if self.type == 0:
-                    await self.submission()
-                elif self.type == 1:
-                    await self.pretest()
-                else:
-                    raise SystemError('Unsupported type: {}'.format(self.type))
-            for key in self.request:
-                logger.warning('Unused key in judge request: %s', key)
+                raise Exception('Unsupported type: {}'.format(self.type))
         except CompileError as e:
             self.end(status=STATUS_COMPILE_ERROR,
                      score=0,
@@ -63,33 +67,25 @@ class JudgeHandler:
         logger.debug('Invalidated %s/%s', domain_id, pid)
         await update_problem_data(self.session)
 
-    async def submission(self):
+    async def do_submission(self):
         loop = get_event_loop()
-        domain_id = self.request.pop('domain_id')
-        pid = self.request.pop('pid')
-        rid = self.request.pop('rid')
-        logger.info('Submission: %s, %s, %s', domain_id, pid, rid)
-        cases_file_task = loop.create_task(cache_open(self.session, domain_id, pid))
+        logger.info('Submission: %s, %s, %s', self.domain_id, self.pid, self.rid)
+        cases_file_task = loop.create_task(cache_open(self.session, self.domain_id, self.pid))
         package = await self.build()
         with await cases_file_task as cases_file:
             await self.judge(cases_file, package)
 
-    async def pretest(self):
+    async def do_pretest(self):
         loop = get_event_loop()
-        domain_id = self.request.pop('domain_id')
-        pid = self.request.pop('pid')
-        rid = self.request.pop('rid')
-        logger.info('Pretest: %s, %s, %s', domain_id, pid, rid)
-        cases_data_task = loop.create_task(self.session.record_pretest_data(rid))
+        logger.info('Pretest: %s, %s, %s', self.domain_id, self.pid, self.rid)
+        cases_data_task = loop.create_task(self.session.record_pretest_data(self.rid))
         package = await self.build()
         with BytesIO(await cases_data_task) as cases_file:
             await self.judge(cases_file, package)
 
     async def build(self):
-        lang = self.request.pop('lang')
-        code = self.request.pop('code')
         self.next(status=STATUS_COMPILING)
-        package, message, time_usage_ns, memory_usage_bytes = await pool_build(lang, code)
+        package, message, time_usage_ns, memory_usage_bytes = await pool_build(self.lang, self.code)
         self.next(compiler_text=message)
         if not package:
             logger.debug('Compile error: %s', message)
@@ -109,16 +105,16 @@ class JudgeHandler:
             judge_tasks.append(loop.create_task(pool_judge(package, case)))
         for index, judge_task in enumerate(judge_tasks):
             status, score, time_usage_ns, memory_usage_bytes, stderr = await judge_task
-            case = {'status': status,
-                    'score': score,
-                    'time_ms': time_usage_ns // 1000000,
-                    'memory_kb': memory_usage_bytes // 1024}
             if self.type == 1:
-                case['judge_text'] = stderr.decode(encoding='utf-8', errors='replace')
+                judge_text = stderr.decode(encoding='utf-8', errors='replace')
             else:
-                case['judge_text'] = ''
+                judge_text = ''
             self.next(status=STATUS_JUDGING,
-                      case=case,
+                      case={'status': status,
+                            'score': score,
+                            'time_ms': time_usage_ns // 1000000,
+                            'memory_kb': memory_usage_bytes // 1024,
+                            'judge_text': judge_text},
                       progress=(index + 1) * 100 // len(cases))
             logger.debug('Case %d: %d, %g, %g, %g, %s',
                          index, status, score, time_usage_ns / 1000000, memory_usage_bytes / 1024, stderr)
