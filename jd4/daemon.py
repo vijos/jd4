@@ -13,7 +13,10 @@ from jd4.status import STATUS_COMPILE_ERROR, STATUS_SYSTEM_ERROR, STATUS_JUDGING
 RETRY_DELAY_SEC = 30
 
 class CompileError(Exception):
-    pass
+    def __init__(self, message, time_usage_ns, memory_usage_bytes):
+        super().__init__(message)
+        self.time_usage_ns = time_usage_ns
+        self.memory_usage_bytes = memory_usage_bytes
 
 class SystemError(Exception):
     pass
@@ -24,27 +27,30 @@ class JudgeHandler:
         self.request = request
         self.ws = ws
         self.tag = self.request.pop('tag', None)
+        self.event = self.request.pop('event', None)
+        self.type = self.request.pop('type', None)
 
     async def handle(self):
         try:
-            event = self.request.pop('event', None)
-            if event:
-                if event == 'problem_data_change':
+            if self.event:
+                if self.event == 'problem_data_change':
                     await self.update_problem_data()
                 else:
-                    raise SystemError('Unknown event: {}'.format(event))
+                    raise SystemError('Unknown event: {}'.format(self.event))
             else:
-                type = self.request.pop('type')
-                if type == 0:
+                if self.type == 0:
                     await self.submission()
-                elif type == 1:
+                elif self.type == 1:
                     await self.pretest()
                 else:
-                    raise SystemError('Unsupported type: {}'.format(type))
+                    raise SystemError('Unsupported type: {}'.format(self.type))
             for key in self.request:
                 logger.warning('Unused key in judge request: %s', key)
         except CompileError as e:
-            self.end(status=STATUS_COMPILE_ERROR, score=0, time_ms=0, memory_kb=0)
+            self.end(status=STATUS_COMPILE_ERROR,
+                     score=0,
+                     time_ms=e.time_usage_ns // 1000000,
+                     memory_kb=e.memory_usage_bytes // 1024)
         except Exception as e:
             logger.exception(e)
             self.next(judge_text=repr(e))
@@ -83,11 +89,11 @@ class JudgeHandler:
         lang = self.request.pop('lang')
         code = self.request.pop('code')
         self.next(status=STATUS_COMPILING)
-        package, message = await pool_build(lang, code)
+        package, message, time_usage_ns, memory_usage_bytes = await pool_build(lang, code)
         self.next(compiler_text=message)
         if not package:
-            logger.info('Compile error: %s', message)
-            raise CompileError(message)
+            logger.debug('Compile error: %s', message)
+            raise CompileError(message, time_usage_ns, memory_usage_bytes)
         return package
 
     async def judge(self, cases_file, package):
@@ -103,12 +109,16 @@ class JudgeHandler:
             judge_tasks.append(loop.create_task(pool_judge(package, case)))
         for index, judge_task in enumerate(judge_tasks):
             status, score, time_usage_ns, memory_usage_bytes, stderr = await judge_task
+            case = {'status': status,
+                    'score': score,
+                    'time_ms': time_usage_ns // 1000000,
+                    'memory_kb': memory_usage_bytes // 1024}
+            if self.type == 1:
+                case['judge_text'] = stderr.decode(encoding='utf-8', errors='replace')
+            else:
+                case['judge_text'] = ''
             self.next(status=STATUS_JUDGING,
-                      case={'status': status,
-                            'score': score,
-                            'time_ms': time_usage_ns // 1000000,
-                            'memory_kb': memory_usage_bytes // 1024,
-                            'judge_text': stderr.decode(encoding='utf-8', errors='replace')},
+                      case=case,
                       progress=(index + 1) * 100 // len(cases))
             logger.debug('Case %d: %d, %g, %g, %g, %s',
                          index, status, score, time_usage_ns / 1000000, memory_usage_bytes / 1024, stderr)
@@ -121,7 +131,7 @@ class JudgeHandler:
                  time_ms=total_time_usage_ns // 1000000,
                  memory_kb=total_memory_usage_bytes // 1024)
         logger.info('Total: %d, %g, %g, %g',
-                     total_status, total_score, total_time_usage_ns / 1000000, total_memory_usage_bytes / 1024)
+                    total_status, total_score, total_time_usage_ns / 1000000, total_memory_usage_bytes / 1024)
 
     def next(self, **kwargs):
         self.ws.send_json({'key': 'next', 'tag': self.tag, **kwargs})

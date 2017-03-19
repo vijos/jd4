@@ -1,10 +1,12 @@
 import shlex
 from appdirs import user_config_dir
-from asyncio import get_event_loop, LifoQueue
+from asyncio import gather, get_event_loop, LifoQueue
 from functools import partial
 from os import mkfifo, path
 from ruamel import yaml
+from socket import socket, AF_UNIX, SOCK_STREAM, SOCK_NONBLOCK
 
+from jd4.cgroup import wait_cgroup
 from jd4.compile import Compiler, Interpreter
 from jd4.config import config
 from jd4.log import logger
@@ -14,26 +16,44 @@ from jd4.util import read_pipe
 _CONFIG_DIR = user_config_dir('jd4')
 _LANGS_FILE = path.join(_CONFIG_DIR, 'langs.yaml')
 _MAX_OUTPUT = 8192
+DEFAULT_TIME_MS = 20000
+DEFAULT_MEM_KB = 262144
+PROCESS_LIMIT = 32
 
 _sandbox_pool = LifoQueue()
 _langs = dict()
 
-async def _compiler_build(compiler, code):
+async def _compiler_build(compiler, code,
+                          time_limit_ns, memory_limit_bytes, process_limit):
     loop = get_event_loop()
     sandbox = await _sandbox_pool.get()
     try:
         await compiler.prepare(sandbox, code.encode())
         output_file = path.join(sandbox.in_dir, 'output')
         mkfifo(output_file)
-        output_task = loop.create_task(read_pipe(output_file, _MAX_OUTPUT))
-        package, status = await compiler.build(sandbox, stdout_file='/in/output', stderr_file='/in/output')
-        output = await output_task
-        return package, output.decode(encoding='utf-8', errors='replace')
+        cgroup_sock = socket(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK)
+        cgroup_sock.bind(path.join(sandbox.in_dir, 'cgroup'))
+        cgroup_sock.listen()
+        build_task = loop.create_task(compiler.build(
+            sandbox,
+            stdout_file='/in/output',
+            stderr_file='/in/output',
+            cgroup_file='/in/cgroup'))
+        others_task = gather(read_pipe(output_file, _MAX_OUTPUT),
+                             wait_cgroup(cgroup_sock,
+                                         build_task,
+                                         time_limit_ns,
+                                         memory_limit_bytes,
+                                         process_limit))
+        package, status = await build_task
+        output, (time_usage_ns, memory_usage_bytes) = await others_task
+        return package, output.decode(encoding='utf-8', errors='replace'), \
+               time_usage_ns, memory_usage_bytes
     finally:
         _sandbox_pool.put_nowait(sandbox)
 
 async def _interpreter_build(interpreter, code):
-    return interpreter.build(code.encode()), ''
+    return interpreter.build(code.encode()), '', 0, 0
 
 async def _init():
     parallelism = config.get('parallelism', 1)
@@ -54,7 +74,11 @@ async def _init():
                                 lang_config['code_file'],
                                 lang_config['execute_file'],
                                 shlex.split(lang_config['execute_args']))
-            _langs[lang_name] = partial(_compiler_build, compiler)
+            _langs[lang_name] = partial(
+                _compiler_build, compiler,
+                time_limit_ns=lang_config.get('time_limit_ms', DEFAULT_TIME_MS) * 1000000,
+                memory_limit_bytes=lang_config.get('memory_limit_kb', DEFAULT_MEM_KB) * 1024,
+                process_limit=lang_config.get('process_limit', PROCESS_LIMIT))
         elif lang_config['type'] == 'interpreter':
             interpreter = Interpreter(lang_config['code_file'],
                                       lang_config['execute_file'],

@@ -22,8 +22,9 @@ from jd4.util import read_pipe
 
 CHUNK_SIZE = 32768
 MAX_STDERR_SIZE = 8192
-PROCESS_LIMIT = 32
+DEFAULT_TIME_MS = 1000
 DEFAULT_MEM_KB = 262144
+PROCESS_LIMIT = 32
 
 class CaseBase:
     def __init__(self, time_limit_ns, memory_limit_bytes, process_limit, score):
@@ -96,7 +97,7 @@ class LegacyCase(CaseBase):
 
 class APlusBCase(CaseBase):
     def __init__(self, a, b):
-        super().__init__(1000000000, DEFAULT_MEM_KB * 1024, PROCESS_LIMIT, 10)
+        super().__init__(DEFAULT_TIME_MS * 1000000, DEFAULT_MEM_KB * 1024, PROCESS_LIMIT, 10)
         self.a = a
         self.b = b
 
