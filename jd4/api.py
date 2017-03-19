@@ -11,13 +11,8 @@ CHUNK_SIZE = 32768
 
 class VJ4Error(Exception):
     def __init__(self, name, message, *args):
-        super().__init__('{}: {} ({})'.format(name, message, ', '.join(map(str, args))))
+        super().__init__(name, message, *args)
         self.name = name
-        self.message = message
-        self.args = args
-
-    def __repr__(self):
-        return '{}: {} ({})'.format(self.name, self.message, ', '.join(map(str, self.args)))
 
 async def json_response_to_dict(response):
     if response.content_type != 'application/json':
