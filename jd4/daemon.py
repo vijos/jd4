@@ -116,8 +116,6 @@ class JudgeHandler:
                             'memory_kb': memory_usage_bytes // 1024,
                             'judge_text': judge_text},
                       progress=(index + 1) * 100 // len(cases))
-            logger.debug('Case %d: %d, %g, %g, %g, %s',
-                         index, status, score, time_usage_ns / 1000000, memory_usage_bytes / 1024, stderr)
             total_status = max(total_status, status)
             total_score += score
             total_time_usage_ns += time_usage_ns
@@ -126,8 +124,6 @@ class JudgeHandler:
                  score=total_score,
                  time_ms=total_time_usage_ns // 1000000,
                  memory_kb=total_memory_usage_bytes // 1024)
-        logger.info('Total: %d, %g, %g, %g',
-                    total_status, total_score, total_time_usage_ns / 1000000, total_memory_usage_bytes / 1024)
 
     def next(self, **kwargs):
         self.ws.send_json({'key': 'next', 'tag': self.tag, **kwargs})
