@@ -1,7 +1,8 @@
-from asyncio import get_event_loop, sleep
+from aiohttp import ClientError
+from asyncio import gather, get_event_loop, sleep, shield, wait, FIRST_COMPLETED
 from io import BytesIO
 
-from jd4.api import VJ4Session
+from jd4.api import VJ4Error, VJ4Session
 from jd4.case import read_legacy_cases
 from jd4.cache import cache_open, cache_invalidate
 from jd4.cgroup import try_init_cgroup
@@ -55,6 +56,8 @@ class JudgeHandler:
                      score=0,
                      time_ms=e.time_usage_ns // 1000000,
                      memory_kb=e.memory_usage_bytes // 1024)
+        except (ClientError, VJ4Error):
+            raise
         except Exception as e:
             logger.exception(e)
             self.next(judge_text=repr(e))
@@ -85,7 +88,8 @@ class JudgeHandler:
 
     async def build(self):
         self.next(status=STATUS_COMPILING)
-        package, message, time_usage_ns, memory_usage_bytes = await pool_build(self.lang, self.code)
+        package, message, time_usage_ns, memory_usage_bytes = \
+            await shield(pool_build(self.lang, self.code))
         self.next(compiler_text=message)
         if not package:
             logger.debug('Compile error: %s', message)
@@ -104,7 +108,7 @@ class JudgeHandler:
         for case in cases:
             judge_tasks.append(loop.create_task(pool_judge(package, case)))
         for index, judge_task in enumerate(judge_tasks):
-            status, score, time_usage_ns, memory_usage_bytes, stderr = await judge_task
+            status, score, time_usage_ns, memory_usage_bytes, stderr = await shield(judge_task)
             if self.type == 1:
                 judge_text = stderr.decode(encoding='utf-8', errors='replace')
             else:
@@ -140,6 +144,16 @@ async def update_problem_data(session):
     config['last_update_at'] = result['time']
     await save_config()
 
+async def do_judge(session):
+    await update_problem_data(session)
+    await session.judge_consume(JudgeHandler)
+
+async def do_noop(session):
+    while True:
+        await sleep(3600)
+        logger.info('Updating session')
+        await session.judge_noop()
+
 async def daemon():
     try_init_cgroup()
 
@@ -147,8 +161,11 @@ async def daemon():
         while True:
             try:
                 await session.login_if_needed(config['uname'], config['password'])
-                await update_problem_data(session)
-                await session.judge_consume(JudgeHandler)
+                done, pending = await wait([do_judge(session), do_noop(session)],
+                                           return_when=FIRST_COMPLETED)
+                for task in pending:
+                    task.cancel()
+                await gather(*done)
             except Exception as e:
                 logger.exception(e)
             logger.info('Retrying after %d seconds', RETRY_DELAY_SEC)
