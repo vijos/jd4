@@ -1,5 +1,5 @@
 from asyncio import get_event_loop
-from os import chdir, dup2, execve, fork, mkdir, open as os_open, path, waitpid, \
+from os import close as os_close, chdir, dup2, execve, fork, mkdir, open as os_open, path, waitpid, \
                O_RDONLY, O_WRONLY, WNOHANG, WIFSIGNALED, WTERMSIG, WEXITSTATUS
 from pty import STDIN_FILENO, STDOUT_FILENO, STDERR_FILENO
 from shutil import copytree, rmtree
@@ -37,11 +37,17 @@ class Executable:
         if not pid:
             chdir('/in/package')
             if stdin_file:
-                dup2(os_open(stdin_file, O_RDONLY), STDIN_FILENO)
+                fd = os_open(stdin_file, O_RDONLY)
+                dup2(fd, STDIN_FILENO)
+                os_close(fd)
             if stdout_file:
-                dup2(os_open(stdout_file, O_WRONLY), STDOUT_FILENO)
+                fd = os_open(stdout_file, O_WRONLY)
+                dup2(fd, STDOUT_FILENO)
+                os_close(fd)
             if stderr_file:
-                dup2(os_open(stderr_file, O_WRONLY), STDERR_FILENO)
+                fd = os_open(stderr_file, O_WRONLY)
+                dup2(fd, STDERR_FILENO)
+                os_close(fd)
             if cgroup_file:
                 enter_cgroup(cgroup_file)
             execve(self.execute_file, self.execute_args, SPAWN_ENV)
@@ -78,11 +84,9 @@ class Compiler:
         await sandbox.reset()
         await loop.run_in_executor(None, write_binary_file, path.join(sandbox.in_dir, self.code_file), code)
 
-    async def build(self, sandbox, *,
-                    stdin_file=None, stdout_file=None, stderr_file=None, cgroup_file=None):
+    async def build(self, sandbox, *, output_file=None, cgroup_file=None):
         loop = get_event_loop()
-        status = await sandbox.marshal(lambda: self.do_build(
-            stdin_file, stdout_file, stderr_file, cgroup_file))
+        status = await sandbox.marshal(lambda: self.do_build(output_file, cgroup_file))
         if status:
             return None, status
         package_dir = mkdtemp(prefix='jd4.package.')
@@ -92,16 +96,16 @@ class Compiler:
                                    path.join(package_dir, 'package'))
         return Package(package_dir, self.execute_file, self.execute_args), 0
 
-    def do_build(self, stdin_file, stdout_file, stderr_file, cgroup_file):
+    def do_build(self, output_file, cgroup_file):
         pid = fork()
         if not pid:
             chdir('/out')
-            if stdin_file:
-                dup2(os_open(stdin_file, O_RDONLY), STDIN_FILENO)
-            if stdout_file:
-                dup2(os_open(stdout_file, O_WRONLY), STDOUT_FILENO)
-            if stderr_file:
-                dup2(os_open(stderr_file, O_WRONLY), STDERR_FILENO)
+            os_close(STDIN_FILENO)
+            if output_file:
+                fd = os_open(output_file, O_WRONLY)
+                dup2(fd, STDOUT_FILENO)
+                dup2(fd, STDERR_FILENO)
+                os_close(fd)
             if cgroup_file:
                 enter_cgroup(cgroup_file)
             execve(self.compiler_file, self.compiler_args, SPAWN_ENV)

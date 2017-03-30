@@ -36,8 +36,7 @@ async def _compiler_build(compiler, code,
         cgroup_sock.listen()
         build_task = loop.create_task(compiler.build(
             sandbox,
-            stdout_file='/in/output',
-            stderr_file='/in/output',
+            output_file='/in/output',
             cgroup_file='/in/cgroup'))
         others_task = gather(read_pipe(output_file, _MAX_OUTPUT),
                              wait_cgroup(cgroup_sock,
