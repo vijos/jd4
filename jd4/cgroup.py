@@ -17,8 +17,6 @@ WAIT_JITTER_NS = 5000000
 
 def try_init_cgroup():
     euid = geteuid()
-    if euid == 0:
-        logger.warning('Running as root')
     cgroups_to_init = list()
     if not (path.isdir(CPUACCT_CGROUP_ROOT) and access(CPUACCT_CGROUP_ROOT, W_OK)):
         cgroups_to_init.append(CPUACCT_CGROUP_ROOT)
