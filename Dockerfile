@@ -7,7 +7,7 @@ RUN apt-get install -y \
             python3 \
             python3-venv \
             python3-dev \
-            libffi-dev
+            libffi-dev \
             g++ \
             fp-compiler \
             openjdk-8-jdk \
