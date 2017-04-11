@@ -1,0 +1,14 @@
+sudo: required
+
+services:
+- docker
+
+before_install:
+- docker build -t iceb0y/jd4 .
+
+script:
+- docker run -it --privileged
+      -v $(readlink -f examples/config.yaml):/root/.config/jd4/config.yaml
+      iceb0y/jd4 /bin/bash -c "source /root/venv/bin/activate &&
+                               cd /root/jd4 &&
+                               python3 -m jd4.integration_test"
