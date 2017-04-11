@@ -8,7 +8,7 @@ RUN apt-get update && \
             libffi-dev \
             g++ \
             fp-compiler \
-            openjdk-8-jdk \
+            openjdk-8-jdk-headless \
             python \
             php7.0-cli
 RUN python3 -m venv /root/venv
