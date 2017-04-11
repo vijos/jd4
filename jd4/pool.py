@@ -31,21 +31,21 @@ async def _compiler_build(compiler, code,
         await compiler.prepare(sandbox, code.encode())
         output_file = path.join(sandbox.in_dir, 'output')
         mkfifo(output_file)
-        cgroup_sock = socket(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK)
-        cgroup_sock.bind(path.join(sandbox.in_dir, 'cgroup'))
-        cgroup_sock.listen()
-        build_task = loop.create_task(compiler.build(
-            sandbox,
-            output_file='/in/output',
-            cgroup_file='/in/cgroup'))
-        others_task = gather(read_pipe(output_file, _MAX_OUTPUT),
-                             wait_cgroup(cgroup_sock,
-                                         build_task,
-                                         time_limit_ns,
-                                         memory_limit_bytes,
-                                         process_limit))
-        package, status = await build_task
-        output, (time_usage_ns, memory_usage_bytes) = await others_task
+        with socket(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK) as cgroup_sock:
+            cgroup_sock.bind(path.join(sandbox.in_dir, 'cgroup'))
+            cgroup_sock.listen()
+            build_task = loop.create_task(compiler.build(
+                sandbox,
+                output_file='/in/output',
+                cgroup_file='/in/cgroup'))
+            others_task = gather(read_pipe(output_file, _MAX_OUTPUT),
+                                 wait_cgroup(cgroup_sock,
+                                             build_task,
+                                             time_limit_ns,
+                                             memory_limit_bytes,
+                                             process_limit))
+            package, status = await build_task
+            output, (time_usage_ns, memory_usage_bytes) = await others_task
         return package, output.decode(encoding='utf-8', errors='replace'), \
                time_usage_ns, memory_usage_bytes
     finally:

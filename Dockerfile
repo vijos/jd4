@@ -15,11 +15,8 @@ RUN apt-get update && \
             php7.0-cli && \
     python3 -m venv /root/venv && \
     bash -c "source /root/venv/bin/activate && \
-             pip install -r /root/jd4/requirements.txt" && \
-    apt-get remove -y \
-            python3-dev \
-            libffi-dev && \
-    apt-get autoremove -y
+             pip install -r /root/jd4/requirements.txt"
+# TODO(iceboy): Build cython modules and remove python3-dev (and libffi-dev).
 CMD bash -c "source /root/venv/bin/activate && \
              cd /root/jd4 && \
              python3 -m jd4.daemon"
