@@ -1,0 +1,2 @@
+#!/bin/bash
+docker run -it --privileged -v ~/.cache/jd4:/root/.cache/jd4 -v ~/.config/jd4/config.yaml:/root/.config/jd4/config.yaml iceb0y/jd4
