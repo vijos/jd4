@@ -3,6 +3,7 @@ Judge Daemon
 
 .. image:: https://travis-ci.org/vijos/jd4.svg?branch=master
     :target: https://travis-ci.org/vijos/jd4
+.. image:: https://img.shields.io/docker/automated/vijos/jd4.svg
 
 .. contents::
 
