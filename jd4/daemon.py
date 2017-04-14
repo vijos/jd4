@@ -2,7 +2,7 @@ from aiohttp import ClientError
 from asyncio import gather, get_event_loop, sleep, shield, wait, FIRST_COMPLETED
 from io import BytesIO
 
-from jd4.api import VJ4Error, VJ4Session
+from jd4.api import VJ4Session
 from jd4.case import read_legacy_cases
 from jd4.cache import cache_open, cache_invalidate
 from jd4.cgroup import try_init_cgroup
@@ -56,7 +56,7 @@ class JudgeHandler:
                      score=0,
                      time_ms=e.time_usage_ns // 1000000,
                      memory_kb=e.memory_usage_bytes // 1024)
-        except (ClientError, VJ4Error):
+        except ClientError:
             raise
         except Exception as e:
             logger.exception(e)
