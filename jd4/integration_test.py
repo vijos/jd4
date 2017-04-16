@@ -86,5 +86,8 @@ echo $a + $b . "\\n";
     def test_py(self):
         self.do_lang('py', 'print sum(map(int, raw_input().split()))')
 
+    def test_py3(self):
+        self.do_lang('py3', 'print(sum(map(int, input().split())))')
+
 if __name__ == '__main__':
     main()

@@ -31,6 +31,11 @@ py:
     code_file: foo.py
     execute_file: /usr/bin/python
     execute_args: python foo.py
+py3:
+    type: interpreter
+    code_file: foo.py
+    execute_file: /usr/bin/python3
+    execute_args: python3 foo.py
 php:
     type: interpreter
     code_file: foo.php
