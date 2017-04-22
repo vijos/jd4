@@ -2,8 +2,8 @@ import cloudpickle
 from asyncio import gather, get_event_loop, open_connection
 from butter.clone import unshare, CLONE_NEWNS, CLONE_NEWUTS, CLONE_NEWIPC, CLONE_NEWUSER, CLONE_NEWPID, CLONE_NEWNET
 from butter.system import mount, pivot_root, umount, MS_BIND, MS_NOSUID, MS_RDONLY, MS_REMOUNT
-from os import chdir, fork, getegid, geteuid, listdir, makedirs, mkdir, path, remove, readlink, rmdir, \
-    setresgid, setresuid, spawnve, symlink, waitpid, P_WAIT
+from os import chdir, fork, getegid, geteuid, listdir, makedirs, mkdir, mknod, path, \
+    remove, readlink, rmdir, setresgid, setresuid, spawnve, symlink, waitpid, P_WAIT
 from shutil import rmtree
 from socket import sethostname, socketpair
 from struct import pack, unpack
@@ -14,21 +14,6 @@ from jd4.log import logger
 from jd4.util import write_text_file
 
 MNT_DETACH = 2
-
-def bind_mount(src, target, *, ignore_missing=True, makedir=True, rdonly=True):
-    if ignore_missing and not path.isdir(src):
-        return
-    if makedir:
-        makedirs(target)
-    mount(src, target, '', MS_BIND | MS_NOSUID)
-    if rdonly:
-        mount(src, target, '', MS_BIND | MS_REMOUNT | MS_RDONLY | MS_NOSUID)
-
-def bind_or_link(src, target):
-    if path.islink(src):
-        symlink(readlink(src), target)
-    else:
-        bind_mount(src, target)
 
 def remove_under(*dirnames):
     for dirname in dirnames:
@@ -55,7 +40,8 @@ class Sandbox:
 
     async def reset(self):
         loop = get_event_loop()
-        await loop.run_in_executor(None, remove_under, self.in_dir, self.out_dir)
+        await gather(loop.run_in_executor(None, remove_under, self.in_dir, self.out_dir),
+                     self.marshal(lambda: remove_under('/tmp')))
 
     async def marshal(self, func):
         cloudpickle.dump(func, self.writer)
@@ -67,9 +53,9 @@ class Sandbox:
 
     async def backdoor(self):
         return await self.marshal(lambda: spawnve(
-            P_WAIT, '/bin/bash', ['bunny'], {'PATH': '/usr/bin:/bin'}))
+            P_WAIT, '/bin/bash', ['bunny'], {'PATH': '/usr/bin:/bin', 'HOME': '/'}))
 
-def _handle_child(child_socket, root_dir, in_dir, out_dir, *, fork_twice=True, mount_proc=True):
+def _create_namespace():
     host_euid = geteuid()
     host_egid = getegid()
     unshare(CLONE_NEWNS | CLONE_NEWUTS | CLONE_NEWIPC |
@@ -83,39 +69,64 @@ def _handle_child(child_socket, root_dir, in_dir, out_dir, *, fork_twice=True, m
     setresuid(1000, 1000, 1000)
     setresgid(1000, 1000, 1000)
     sethostname('icebox')
-    if fork_twice:
-        pid = fork()
-        if pid != 0:
-            child_socket.close()
-            waitpid(pid, 0)
-            exit()
 
-    # Prepare sandbox filesystem.
-    mount('tmpfs', root_dir, 'tmpfs', MS_NOSUID)
-    if mount_proc:
-        proc_dir = path.join(root_dir, 'proc')
-        mkdir(proc_dir)
-        mount('proc', proc_dir, 'proc', MS_NOSUID)
-    bind_or_link('/bin', path.join(root_dir, 'bin'))
-    bind_or_link('/etc/alternatives', path.join(root_dir, 'etc/alternatives'))
-    bind_or_link('/lib', path.join(root_dir, 'lib'))
-    bind_or_link('/lib64', path.join(root_dir, 'lib64'))
-    bind_or_link('/usr/bin', path.join(root_dir, 'usr/bin'))
-    bind_or_link('/usr/include', path.join(root_dir, 'usr/include'))
-    bind_or_link('/usr/lib', path.join(root_dir, 'usr/lib'))
-    bind_or_link('/usr/lib64', path.join(root_dir, 'usr/lib64'))
-    bind_or_link('/usr/libexec', path.join(root_dir, 'usr/libexec'))
-    bind_mount(in_dir, path.join(root_dir, 'in'))
-    bind_mount(out_dir, path.join(root_dir, 'out'), rdonly=False)
-    chdir(root_dir)
+def bind_mount(src, target, *, make_dir=False, make_node=False, bind=False, rebind_ro=False):
+    if make_dir:
+        makedirs(target)
+    if make_node:
+        mknod(target)
+    if bind:
+        mount(src, target, '', MS_BIND | MS_NOSUID)
+    if rebind_ro:
+        mount(src, target, '', MS_BIND | MS_REMOUNT | MS_RDONLY | MS_NOSUID)
+
+def bind_or_link(src, target):
+    if path.islink(src):
+        symlink(readlink(src), target)
+    elif path.isdir(src):
+        bind_mount(src, target, make_dir=True, bind=True, rebind_ro=True)
+
+def _prepare_fs():
+    mkdir('proc')
+    mount('proc', 'proc', 'proc', MS_NOSUID)
+    mkdir('dev')
+    bind_mount('/dev/null', 'dev/null', make_node=True, bind=True)
+    mkdir('tmp')
+    mount('tmp', 'tmp', 'tmpfs', MS_NOSUID, "size=16m,nr_inodes=4k")
+    bind_or_link('/bin', 'bin')
+    bind_or_link('/etc/alternatives', 'etc/alternatives')
+    bind_or_link('/lib', 'lib')
+    bind_or_link('/lib64', 'lib64')
+    bind_or_link('/usr/bin', 'usr/bin')
+    bind_or_link('/usr/include', 'usr/include')
+    bind_or_link('/usr/lib', 'usr/lib')
+    bind_or_link('/usr/lib64', 'usr/lib64')
+    bind_or_link('/usr/libexec', 'usr/libexec')
+    bind_or_link('/var/lib/ghc', 'var/lib/ghc')
+    write_text_file('etc/passwd', 'icebox:x:1000:1000:icebox:/:/bin/bash\n')
+
+def _enter_namespace():
     mkdir('old_root')
     pivot_root('.', 'old_root')
     umount('old_root', MNT_DETACH)
     rmdir('old_root')
-    write_text_file('/etc/passwd', 'icebox:x:1000:1000:icebox:/:/bin/bash\n')
-    mount('/', '/', '', MS_BIND | MS_REMOUNT | MS_RDONLY | MS_NOSUID)
+    bind_mount('/', '/', rebind_ro=True)
 
-    # Execute pickles.
+def _handle_child(child_socket, root_dir, in_dir, out_dir):
+    _create_namespace()
+    pid = fork()
+    if pid != 0:
+        child_socket.close()
+        waitpid(pid, 0)
+        exit()
+
+    mount('root', root_dir, 'tmpfs', MS_NOSUID)
+    chdir(root_dir)
+    _prepare_fs()
+    bind_mount(in_dir, 'in', make_dir=True, bind=True, rebind_ro=True)
+    bind_mount(out_dir, 'out', make_dir=True, bind=True)
+    _enter_namespace()
+
     socket_file = child_socket.makefile('rwb')
     while True:
         try:

@@ -41,3 +41,17 @@ php:
     code_file: foo.php
     execute_file: /usr/bin/php
     execute_args: php foo.php
+rs:
+    type: compiler
+    compiler_file: /usr/bin/rustc
+    compiler_args: rustc -O -o /out/foo /in/foo.rs
+    code_file: foo.rs
+    execute_file: foo
+    execute_args: foo
+hs:
+    type: compiler
+    compiler_file: /usr/bin/ghc
+    compiler_args: ghc -O -outputdir /tmp -o /out/foo /in/foo.hs
+    code_file: foo.hs
+    execute_file: foo
+    execute_args: foo

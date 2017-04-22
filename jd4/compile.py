@@ -9,7 +9,7 @@ from jd4.cgroup import enter_cgroup
 from jd4.sandbox import create_sandbox
 from jd4.util import write_binary_file
 
-SPAWN_ENV = {'PATH': '/usr/bin:/bin'}
+SPAWN_ENV = {'PATH': '/usr/bin:/bin', 'HOME': '/'}
 
 def wait_and_reap_zombies(pid):
     _, status = waitpid(pid, 0)

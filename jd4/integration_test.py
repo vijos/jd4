@@ -89,5 +89,18 @@ echo $a + $b . "\\n";
     def test_py3(self):
         self.do_lang('py3', 'print(sum(map(int, input().split())))')
 
+    def test_rs(self):
+        self.do_lang('rs', """fn main() {
+    let mut line = String::new();
+    std::io::stdin().read_line(&mut line).unwrap();
+    let numbers: Vec<i32> =
+        line.trim_right().split(' ').map(|s| s.parse().unwrap()).collect();
+    let sum: i32 = numbers.iter().sum();
+    println!("{}", sum);
+}""")
+
+    def test_hs(self):
+        self.do_lang('hs', 'main = print . sum . map read . words =<< getLine')
+
 if __name__ == '__main__':
     main()

@@ -12,7 +12,9 @@ RUN apt-get update && \
             fp-compiler \
             openjdk-8-jdk-headless \
             python \
-            php7.0-cli && \
+            php7.0-cli \
+            rustc \
+            ghc && \
     python3 -m venv /root/venv && \
     bash -c "source /root/venv/bin/activate && \
              pip install -r /root/jd4/requirements.txt"
