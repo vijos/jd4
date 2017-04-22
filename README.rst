@@ -4,8 +4,8 @@ Judge Daemon
 .. image:: https://travis-ci.org/vijos/jd4.svg?branch=master
     :target: https://travis-ci.org/vijos/jd4
 
-.. image:: https://img.shields.io/docker/automated/vijos/jd4.svg
-    :target: https://hub.docker.com/r/vijos/jd4/
+.. image:: https://images.microbadger.com/badges/image/vijos/jd4.svg
+    :target: https://microbadger.com/images/vijos/jd4
 
 .. contents::
 
@@ -19,21 +19,38 @@ appear in Linux 4.4+. jd4 also multiplexes most I/O on an event loop so that
 only two extra threads are used during a judge - one for input, and one for
 output, thus allowing blocking custom judge implementations.
 
-Prerequisites
--------------
+Usage
+-----
+
+Prerequisites:
+
+- Linux 4.4+
+- Docker
+
+Put config.yaml in the configuration directory, usually in
+``$HOME/.config/jd4``. Examples can be found under the ``examples`` directory.
+Create a directory for caching problem data, such as ``$HOME/.cache/jd4``.
+
+Use the following command to pull and run jd4::
+
+    docker run --privileged \
+        -v ~/.config/jd4/config.yaml:/root/.config/jd4/config.yaml \
+        -v ~/.cache/jd4:/root/.cache/jd4 \
+        vijos/jd4
+
+Development
+-----------
+
+Prerequisites:
 
 - Linux 4.4+
 - Python 3.5+
-
-The python libraries require kernel headers, libffi-dev and libseccomp. Though
-we are not using seccomp here.
 
 Use the following command to install Python requirements::
 
     pip3 install -r requirements.txt
 
-Configuration
--------------
+The python libraries require kernel headers and libffi-dev.
 
 Put config.yaml and langs.yaml in the configuration directory, usually in
 ``$HOME/.config/jd4``. Examples can be found under the ``examples`` directory.
@@ -44,17 +61,11 @@ We recommend to use the following commands to initialize the config::
     cp examples/config.yaml ~/.config/jd4/
     ln -sr examples/lang.yaml ~/.config/jd4/
 
-Running the daemon
-------------------
+Use the following command to run the daemon::
 
-We currently run our daemon in tmux with the following command::
-
-    python3 -m jd4.daemon 2>&1 | tee jd4.log
+    python3 -m jd4.daemon
 
 Note that this requires a ``sudo`` to create cgroups on first execution.
-It is not recommended to run the daemon itself as root.
-
-TODO(iceboy): Find a way to babysit the daemon, such as by using systemd.
 
 Playing with the sandbox
 ------------------------

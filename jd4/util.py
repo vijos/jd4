@@ -19,6 +19,12 @@ async def read_pipe(file, size):
     protocol = StreamReaderProtocol(reader)
     transport, _ = await loop.connect_read_pipe(
         lambda: protocol, fdopen(os_open(file, O_RDONLY | O_NONBLOCK)))
-    data = await reader.read(size)
+    chunks = list()
+    while size > 0:
+        chunk = await reader.read(size)
+        if not chunk:
+            break
+        chunks.append(chunk)
+        size -= len(chunk)
     transport.close()
-    return data
+    return b''.join(chunks)
