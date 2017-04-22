@@ -90,17 +90,11 @@ echo $a + $b . "\\n";
         self.do_lang('py3', 'print(sum(map(int, input().split())))')
 
     def test_rs(self):
-        self.do_lang('rs', """use std::io;
-use std::io::BufRead;
-
-fn main() {
-    let reader = io::stdin();
+        self.do_lang('rs', """fn main() {
+    let mut line = String::new();
+    std::io::stdin().read_line(&mut line).unwrap();
     let numbers: Vec<i32> =
-        reader.lock()
-              .lines().next().unwrap().unwrap()
-              .split(' ')
-              .map(|s| s.parse().unwrap())
-              .collect();
+        line.trim_right().split(' ').map(|s| s.parse().unwrap()).collect();
     let sum: i32 = numbers.iter().sum();
     println!("{}", sum);
 }""")

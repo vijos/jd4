@@ -51,7 +51,7 @@ rs:
 hs:
     type: compiler
     compiler_file: /usr/bin/ghc
-    compiler_args: ghc -O -o /out/foo /in/foo.hs
+    compiler_args: ghc -O -outputdir /tmp -o /out/foo /in/foo.hs
     code_file: foo.hs
     execute_file: foo
     execute_args: foo
