@@ -89,5 +89,24 @@ echo $a + $b . "\\n";
     def test_py3(self):
         self.do_lang('py3', 'print(sum(map(int, input().split())))')
 
+    def test_rs(self):
+        self.do_lang('rs', """use std::io;
+use std::io::BufRead;
+
+fn main() {
+    let reader = io::stdin();
+    let numbers: Vec<i32> =
+        reader.lock()
+              .lines().next().unwrap().unwrap()
+              .split(' ')
+              .map(|s| s.parse().unwrap())
+              .collect();
+    let sum: i32 = numbers.iter().sum();
+    println!("{}", sum);
+}""")
+
+    def test_hs(self):
+        self.do_lang('hs', 'main = print . sum . map read . words =<< getLine')
+
 if __name__ == '__main__':
     main()
