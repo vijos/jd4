@@ -7,7 +7,7 @@ before_install:
 - docker build -t vijos/jd4 .
 
 script:
-- docker run -it --privileged
+- docker run --privileged
       -v $(readlink -f examples/config.yaml):/root/.config/jd4/config.yaml
       vijos/jd4 /bin/bash -c "source /root/venv/bin/activate &&
                               cd /root/jd4 &&

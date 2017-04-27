@@ -19,7 +19,8 @@ RUN apt-get update && \
              pip install -r /root/jd4/requirements.txt && \
              cd /root/jd4 && \
              python3 setup.py build_ext --inplace" && \
-    apt-get uninstall -y python3-dev
+    apt-get remove -y python3-dev && \
+    apt-get autoremove
 CMD bash -c "source /root/venv/bin/activate && \
              cd /root/jd4 && \
              python3 -m jd4.daemon"
