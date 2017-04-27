@@ -16,8 +16,10 @@ RUN apt-get update && \
             ghc && \
     python3 -m venv /root/venv && \
     bash -c "source /root/venv/bin/activate && \
-             pip install -r /root/jd4/requirements.txt"
-# TODO(iceboy): Build cython modules and remove python3-dev.
+             pip install -r /root/jd4/requirements.txt && \
+             cd /root/jd4 && \
+             python3 setup.py build_ext --inplace" && \
+    apt-get uninstall -y python3-dev
 CMD bash -c "source /root/venv/bin/activate && \
              cd /root/jd4 && \
              python3 -m jd4.daemon"
