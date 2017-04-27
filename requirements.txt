@@ -1,6 +1,5 @@
 aiohttp
 appdirs
-butter
 cloudpickle
 colorlog
 cython
