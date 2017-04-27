@@ -1,5 +1,6 @@
 from asyncio import get_event_loop
 from functools import wraps
+from os import path
 from unittest import TestCase, main
 
 from jd4.case import read_legacy_cases
@@ -20,7 +21,8 @@ class APlusBTest(TestCase):
     @classmethod
     def setUpClass(cls):
         try_init_cgroup()
-        cls.cases = list(read_legacy_cases('examples/1000.zip'))
+        cls.cases = list(read_legacy_cases(path.join(path.dirname(__file__),
+                                                     'testdata/1000.zip')))
 
     @_wrap
     async def do_lang(self, lang, code):

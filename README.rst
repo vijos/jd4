@@ -61,6 +61,10 @@ We recommend to use the following commands to initialize the config::
     cp examples/config.yaml ~/.config/jd4/
     ln -sr examples/lang.yaml ~/.config/jd4/
 
+Build the cython extensions inplace::
+
+    python3 setup.py build_ext --inplace
+
 Use the following command to run the daemon::
 
     python3 -m jd4.daemon

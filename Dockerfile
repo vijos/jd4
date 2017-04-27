@@ -1,6 +1,5 @@
 FROM debian:testing
-COPY . root/jd4
-COPY examples/langs.yaml root/.config/jd4/langs.yaml
+COPY . /tmp/jd4
 RUN apt-get update && \
     apt-get install -y \
             gcc \
@@ -14,13 +13,14 @@ RUN apt-get update && \
             php7.0-cli \
             rustc \
             ghc && \
-    python3 -m venv /root/venv && \
-    bash -c "source /root/venv/bin/activate && \
-             pip install -r /root/jd4/requirements.txt && \
-             cd /root/jd4 && \
-             python3 setup.py build_ext --inplace" && \
+    python3 -m venv /venv && \
+    bash -c "source /venv/bin/activate && \
+             pip install -r /tmp/jd4/requirements.txt && \
+             pip install /tmp/jd4" \
     apt-get remove -y python3-dev && \
-    apt-get autoremove
-CMD bash -c "source /root/venv/bin/activate && \
-             cd /root/jd4 && \
+    rm -rf /var/lib/apt/lists/* && \
+    mkdir -p /root/.config/jd4 && \
+    cp /tmp/jd4/examples/langs.yaml /root/.config/jd4/langs.yaml && \
+    rm -rf /tmp/jd4
+CMD bash -c "source /venv/bin/activate && \
              python3 -m jd4.daemon"
