@@ -16,8 +16,9 @@ RUN apt-get update && \
     python3 -m venv /venv && \
     bash -c "source /venv/bin/activate && \
              pip install -r /tmp/jd4/requirements.txt && \
-             pip install /tmp/jd4" \
+             pip install /tmp/jd4" && \
     apt-get remove -y python3-dev && \
+    apt-get autoremove -y && \
     rm -rf /var/lib/apt/lists/* && \
     mkdir -p /root/.config/jd4 && \
     cp /tmp/jd4/examples/langs.yaml /root/.config/jd4/langs.yaml && \
