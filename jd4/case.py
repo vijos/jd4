@@ -1,5 +1,3 @@
-import pyximport; pyximport.install()
-
 import csv
 from asyncio import gather, get_event_loop
 from functools import partial
@@ -143,7 +141,8 @@ int main(void) {
     printf("%d\\n", a + b);
 }""")
         package, _ = await gcc.build(sandbox)
-        for case in read_legacy_cases('examples/1000.zip'):
+        for case in read_legacy_cases(path.join(path.dirname(__file__),
+                                                'testdata/1000.zip')):
             logger.info(await case.judge(sandbox, package))
         for i in range(10):
             logger.info(await APlusBCase(randint(0, 32767),
