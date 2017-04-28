@@ -104,5 +104,9 @@ echo $a + $b . "\\n";
     def test_hs(self):
         self.do_lang('hs', 'main = print . sum . map read . words =<< getLine')
 
+    def test_js(self):
+        self.do_lang('js', """const [a, b] = readline().split(' ').map(n => parseInt(n, 10));
+print((a + b).toString());""")
+
 if __name__ == '__main__':
     main()

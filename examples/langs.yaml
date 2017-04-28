@@ -55,3 +55,8 @@ hs:
     code_file: foo.hs
     execute_file: foo
     execute_args: foo
+js:
+    type: interpreter
+    code_file: foo.js
+    execute_file: /usr/bin/jsc
+    execute_args: jsc foo.js
