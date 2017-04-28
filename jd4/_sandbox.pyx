@@ -49,6 +49,7 @@ def enter_namespace(root_dir, in_dir, out_dir):
     mount('proc', 'proc', 'proc', MS_NOSUID, NULL)
     mkdir('dev')
     bind_mount('/dev/null', 'dev/null', False, True, True, False)
+    bind_mount('/dev/urandom', 'dev/urandom', False, True, True, False)
     mkdir('tmp')
     mount('tmp', 'tmp', 'tmpfs', MS_NOSUID, "size=16m,nr_inodes=4k")
     bind_or_link('/bin', 'bin')
