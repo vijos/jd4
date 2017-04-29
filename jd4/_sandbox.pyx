@@ -61,6 +61,7 @@ def enter_namespace(root_dir, in_dir, out_dir):
     bind_or_link('/usr/lib', 'usr/lib')
     bind_or_link('/usr/lib64', 'usr/lib64')
     bind_or_link('/usr/libexec', 'usr/libexec')
+    bind_or_link('/usr/share', 'usr/share')
     bind_or_link('/var/lib/ghc', 'var/lib/ghc')
     bind_mount(in_dir, 'in', True, False, True, True)
     bind_mount(out_dir, 'out', True, False, True, False)

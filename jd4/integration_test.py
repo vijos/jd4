@@ -108,5 +108,15 @@ echo $a + $b . "\\n";
         self.do_lang('js', """const [a, b] = readline().split(' ').map(n => parseInt(n, 10));
 print((a + b).toString());""")
 
+    def test_go(self):
+        self.do_lang('go', """package main
+import "fmt"
+func main() {
+    var a, b int
+    fmt.Scanf("%d%d", &a, &b)
+    fmt.Printf("%d\\n", a + b)
+}
+""")
+
 if __name__ == '__main__':
     main()

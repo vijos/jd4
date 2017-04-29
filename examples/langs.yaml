@@ -60,3 +60,10 @@ js:
     code_file: foo.js
     execute_file: /usr/bin/jsc
     execute_args: jsc foo.js
+go:
+    type: compiler
+    compiler_file: /usr/bin/go
+    compiler_args: go build -o /out/foo /in/foo.go
+    code_file: foo.go
+    execute_file: foo
+    execute_args: foo

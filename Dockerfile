@@ -13,7 +13,8 @@ RUN apt-get update && \
             php7.0-cli \
             rustc \
             ghc \
-            libjavascriptcoregtk-4.0-bin && \
+            libjavascriptcoregtk-4.0-bin \
+            golang && \
     python3 -m venv /venv && \
     bash -c "source /venv/bin/activate && \
              pip install -r /tmp/jd4/requirements.txt && \
