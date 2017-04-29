@@ -12,7 +12,8 @@ RUN apt-get update && \
             python \
             php7.0-cli \
             rustc \
-            ghc && \
+            ghc \
+            golang && \
     python3 -m venv /venv && \
     bash -c "source /venv/bin/activate && \
              pip install -r /tmp/jd4/requirements.txt && \

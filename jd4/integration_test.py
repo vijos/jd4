@@ -104,5 +104,15 @@ echo $a + $b . "\\n";
     def test_hs(self):
         self.do_lang('hs', 'main = print . sum . map read . words =<< getLine')
 
+    def test_go(self):
+        self.do_lang('go', """package main
+import "fmt"
+func main() {
+    var a, b int
+    fmt.Scanf("%d%d", &a, &b)
+    fmt.Printf("%d\\n", a + b)
+}
+""")
+
 if __name__ == '__main__':
     main()

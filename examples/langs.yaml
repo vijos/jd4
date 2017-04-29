@@ -55,3 +55,10 @@ hs:
     code_file: foo.hs
     execute_file: foo
     execute_args: foo
+go:
+    type: compiler
+    compiler_file: /usr/bin/go
+    compiler_args: go build -o /out/foo /in/foo.go
+    code_file: foo.go
+    execute_file: foo
+    execute_args: foo
