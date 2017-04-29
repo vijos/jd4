@@ -13,6 +13,7 @@ RUN apt-get update && \
             php7.0-cli \
             rustc \
             ghc \
+            libjavascriptcoregtk-4.0-bin \
             golang && \
     python3 -m venv /venv && \
     bash -c "source /venv/bin/activate && \
