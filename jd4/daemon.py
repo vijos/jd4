@@ -9,7 +9,8 @@ from jd4.cgroup import try_init_cgroup
 from jd4.config import config, save_config
 from jd4.log import logger
 from jd4.pool import pool_build, pool_judge
-from jd4.status import STATUS_COMPILE_ERROR, STATUS_SYSTEM_ERROR, STATUS_JUDGING, STATUS_COMPILING
+from jd4.status import STATUS_ACCEPTED, STATUS_COMPILE_ERROR, \
+    STATUS_SYSTEM_ERROR, STATUS_JUDGING, STATUS_COMPILING
 
 RETRY_DELAY_SEC = 30
 
@@ -100,7 +101,7 @@ class JudgeHandler:
         loop = get_event_loop()
         self.next(status=STATUS_JUDGING, progress=0)
         cases = list(read_legacy_cases(cases_file))
-        total_status = 0
+        total_status = STATUS_ACCEPTED
         total_score = 0
         total_time_usage_ns = 0
         total_memory_usage_bytes = 0
