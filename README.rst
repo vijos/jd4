@@ -59,7 +59,7 @@ We recommend to use the following commands to initialize the config::
 
     mkdir -p ~/.config/jd4
     cp examples/config.yaml ~/.config/jd4/
-    ln -sr examples/lang.yaml ~/.config/jd4/
+    ln -sr examples/langs.yaml ~/.config/jd4/
 
 Build the cython extensions inplace::
 
