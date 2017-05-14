@@ -1,6 +1,6 @@
 from appdirs import user_cache_dir
 from asyncio import get_event_loop, Event
-from os import makedirs, path, unlink
+from os import makedirs, path, rename, unlink
 
 _CACHE_DIR = user_cache_dir('jd4')
 _events = dict()
@@ -20,7 +20,9 @@ async def cache_open(session, domain_id, pid):
             event = Event()
             _events[(domain_id, pid)] = event
             try:
-                await session.problem_data(domain_id, pid, file_path)
+                tmp_file_path = path.join(domain_dir, 'tmp_' + pid + '.zip')
+                await session.problem_data(domain_id, pid, tmp_file_path)
+                rename(tmp_file_path, file_path)
             finally:
                 event.set()
                 del _events[(domain_id, pid)]
