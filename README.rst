@@ -52,8 +52,10 @@ Use the following command to install Python requirements::
 
 The python libraries require kernel headers and libffi-dev.
 
-Put config.yaml and langs.yaml in the configuration directory, usually in
-``$HOME/.config/jd4``. Examples can be found under the ``examples`` directory.
+Put ``config.yaml`` and ``langs.yaml`` in the configuration directory, usually
+in ``$HOME/.config/jd4``. ``config.yaml`` includes the server address, user and
+password and ``langs.yaml`` includes the compiler options. Examples can be found
+under the ``examples`` directory.
 
 We recommend to use the following commands to initialize the config::
 
