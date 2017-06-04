@@ -5,7 +5,6 @@ from io import BytesIO, TextIOWrapper
 from itertools import islice
 from os import mkfifo, path
 from random import randint
-from shutil import copyfileobj
 from socket import socket, AF_UNIX, SOCK_STREAM, SOCK_NONBLOCK
 from zipfile import ZipFile
 
@@ -78,6 +77,14 @@ class CaseBase:
             score = self.score
         return status, score, time_usage_ns, memory_usage_bytes, stderr
 
+def dos2unix(src, dst):
+    while True:
+        buf = src.read(CHUNK_SIZE)
+        if not buf:
+            break
+        buf = buf.replace(b'\r', b'')
+        dst.write(buf)
+
 class LegacyCase(CaseBase):
     def __init__(self, open_input, open_output, time_sec, mem_kb, score):
         super().__init__(int(time_sec * 1e9), int(mem_kb * 1024), PROCESS_LIMIT, score)
@@ -87,7 +94,7 @@ class LegacyCase(CaseBase):
     def do_stdin(self, stdin_file):
         try:
             with self.open_input() as src, open(stdin_file, 'wb') as dst:
-                copyfileobj(src, dst, CHUNK_SIZE)
+                dos2unix(src, dst)
         except BrokenPipeError:
             pass
 
