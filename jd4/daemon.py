@@ -1,3 +1,5 @@
+import pyximport; pyximport.install()
+
 from aiohttp import ClientError
 from asyncio import gather, get_event_loop, sleep, shield, wait, FIRST_COMPLETED
 from io import BytesIO

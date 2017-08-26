@@ -1,3 +1,5 @@
+import pyximport; pyximport.install()
+
 import csv
 from asyncio import gather, get_event_loop
 from functools import partial
