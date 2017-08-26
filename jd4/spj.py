@@ -1,10 +1,10 @@
 import pyximport; pyximport.install()
 from asyncio import gather, get_event_loop
-from os import mkfifo, path, symlink
+from fcntl import fcntl, F_GETFL, F_SETFL
+from os import mkfifo, path, symlink, O_NONBLOCK
 from socket import socket, AF_UNIX, SOCK_STREAM, SOCK_NONBLOCK
-# from shutil import copyfileobj
 
-from jd4.case import CaseBase, MAX_STDERR_SIZE
+from jd4.case import CaseBase, MAX_STDERR_SIZE, CHUNK_SIZE
 from jd4.cgroup import try_init_cgroup, wait_cgroup
 from jd4.compile import Compiler
 from jd4.status import STATUS_ACCEPTED, STATUS_WRONG_ANSWER, STATUS_RUNTIME_ERROR, \
@@ -19,29 +19,23 @@ JUDGE_MEM_KB = 262144
 JUDGE_PROCESS_LIMIT = 32
 
 def copy_pipeobj(src, target):
-    print('opened')
     while True:
-        print(src, 'copying')
-        buf = src.read(4096)
-        print(src, buf)
-        if not buf:
+        buf = src.read(CHUNK_SIZE)
+        if buf == b'':
             break
-        target.write(buf)
-    print('closed')
-    # copyfileobj(src_file, target_file, 4096)
+        if buf:
+            target.write(buf)
+            target.flush()
 
-def copy_pipe(src, target, target_first=True):
+def copy_pipe(src, target):
     try:
-        if target_first:
-            with open(target, 'wb') as target_file:
-                with open(src, 'rb') as src_file:
-                    copy_pipeobj(src_file, target_file)
-        else:
+        with open(target, 'wb') as target_file:
             with open(src, 'rb') as src_file:
-                with open(target, 'wb') as target_file:
-                    copy_pipeobj(src_file, target_file)
+                fd = src_file.fileno()
+                flag = fcntl(fd, F_GETFL)
+                fcntl(fd, F_SETFL, flag | O_NONBLOCK)
+                copy_pipeobj(src_file, target_file)
     except BrokenPipeError:
-        print('BrokenPipeError')
         pass
 
 class SpjCaseBase(CaseBase):
@@ -59,6 +53,7 @@ class SpjCaseBase(CaseBase):
         mkfifo(judge_stdin_file)
         judge_stdout_file = path.join(judge_sandbox.in_dir, 'stdout')
         mkfifo(judge_stdout_file)
+        # TODO(twd2): performance improve
         user_stdin_file = path.join(user_sandbox.in_dir, 'stdin')
         mkfifo(user_stdin_file)
         user_stdout_file = path.join(user_sandbox.in_dir, 'stdout')
@@ -67,8 +62,6 @@ class SpjCaseBase(CaseBase):
         mkfifo(judge_err_file)
         user_err_file = path.join(user_sandbox.in_dir, 'stderr')
         mkfifo(user_err_file)
-        print(judge_stdin_file, judge_stdout_file)
-        print(user_stdin_file, user_stdout_file)
         with socket(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK) as judge_cgroup_sock:
             with socket(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK) as user_cgroup_sock:
                 judge_cgroup_sock.bind(path.join(judge_sandbox.in_dir, 'cgroup'))
@@ -153,14 +146,12 @@ int main(void) {
         judge_package, _ = await gcc.build(sandbox1)
         print('Building user')
         await gcc.prepare(sandbox2, b"""#include <stdio.h>
-#include <stdlib.h>
 int main(void) {
     int a, b, i = 10;
     while (i--)
     {
-        // fprintf(stderr, "%d\\n", i);
         scanf("%d%d", &a, &b);
-        printf("%d\\n", a + b);
+        printf("%d\\n", a + b + (int)(a > 16384));
         fflush(stdout);
     }
 }""")
