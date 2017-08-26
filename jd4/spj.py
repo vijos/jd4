@@ -1,7 +1,8 @@
 import pyximport; pyximport.install()
+
 from asyncio import gather, get_event_loop
 from fcntl import fcntl, F_GETFL, F_SETFL
-from os import mkfifo, path, symlink, O_NONBLOCK
+from os import mkfifo, path, O_NONBLOCK
 from socket import socket, AF_UNIX, SOCK_STREAM, SOCK_NONBLOCK
 
 from jd4.case import CaseBase, MAX_STDERR_SIZE, CHUNK_SIZE
