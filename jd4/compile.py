@@ -36,12 +36,15 @@ class Executable:
         pid = fork()
         if not pid:
             chdir('/in/package')
+            print('1')
             if stdin_file:
                 fd = os_open(stdin_file, O_RDONLY)
                 dup2(fd, STDIN_FILENO)
                 os_close(fd)
+            print('2')
             if stdout_file:
                 fd = os_open(stdout_file, O_WRONLY)
+                print('3')
                 dup2(fd, STDOUT_FILENO)
                 os_close(fd)
             if stderr_file:
