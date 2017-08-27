@@ -30,12 +30,12 @@ def copy_pipeobj(src, target):
 
 def copy_pipe(src, target):
     try:
-        with open(target, 'wb') as target_file:
-            with open(src, 'rb') as src_file:
-                fd = src_file.fileno()
-                flag = fcntl(fd, F_GETFL)
-                fcntl(fd, F_SETFL, flag | O_NONBLOCK)
-                copy_pipeobj(src_file, target_file)
+        with open(target, 'wb') as target_file, \
+             open(src, 'rb') as src_file:
+            fd = src_file.fileno()
+            flag = fcntl(fd, F_GETFL)
+            fcntl(fd, F_SETFL, flag | O_NONBLOCK)
+            copy_pipeobj(src_file, target_file)
     except BrokenPipeError:
         pass
 
@@ -63,43 +63,43 @@ class SpjCaseBase(CaseBase):
         mkfifo(judge_err_file)
         user_err_file = path.join(user_sandbox.in_dir, 'stderr')
         mkfifo(user_err_file)
-        with socket(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK) as judge_cgroup_sock:
-            with socket(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK) as user_cgroup_sock:
-                judge_cgroup_sock.bind(path.join(judge_sandbox.in_dir, 'cgroup'))
-                judge_cgroup_sock.listen()
-                user_cgroup_sock.bind(path.join(user_sandbox.in_dir, 'cgroup'))
-                user_cgroup_sock.listen()
-                judge_exe_task = loop.create_task(judge_exe.execute(
-                    judge_sandbox,
-                    stdin_file='/in/stdin',
-                    stdout_file='/in/stdout',
-                    stderr_file='/in/stderr',
-                    cgroup_file='/in/cgroup'))
-                user_exe_task = loop.create_task(user_exe.execute(
-                    user_sandbox,
-                    stdin_file='/in/stdin',
-                    stdout_file='/in/stdout',
-                    stderr_file='/in/stderr',
-                    cgroup_file='/in/cgroup'))
-                others_task = gather(
-                    loop.run_in_executor(None, copy_pipe, user_stdout_file, judge_stdin_file),
-                    loop.run_in_executor(None, copy_pipe, judge_stdout_file, user_stdin_file),
-                    read_pipe(judge_err_file, MAX_STDERR_SIZE),
-                    read_pipe(user_err_file, MAX_STDERR_SIZE),
-                    wait_cgroup(judge_cgroup_sock,
-                                judge_exe_task,
-                                JUDGE_TIME_MS * 1000000,
-                                JUDGE_MEM_KB * 1024,
-                                JUDGE_PROCESS_LIMIT),
-                    wait_cgroup(user_cgroup_sock,
-                                user_exe_task,
-                                self.time_limit_ns,
-                                self.memory_limit_bytes,
-                                self.process_limit))
-                judge_exe_status = await judge_exe_task
-                user_exe_status = await user_exe_task
-                _, __, judge_err, user_err, (judge_time_usage_ns, judge_memory_usage_bytes), \
-                    (user_time_usage_ns, user_memory_usage_bytes) = await others_task
+        with socket(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK) as judge_cgroup_sock, \
+             socket(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK) as user_cgroup_sock:
+            judge_cgroup_sock.bind(path.join(judge_sandbox.in_dir, 'cgroup'))
+            judge_cgroup_sock.listen()
+            user_cgroup_sock.bind(path.join(user_sandbox.in_dir, 'cgroup'))
+            user_cgroup_sock.listen()
+            judge_exe_task = loop.create_task(judge_exe.execute(
+                judge_sandbox,
+                stdin_file='/in/stdin',
+                stdout_file='/in/stdout',
+                stderr_file='/in/stderr',
+                cgroup_file='/in/cgroup'))
+            user_exe_task = loop.create_task(user_exe.execute(
+                user_sandbox,
+                stdin_file='/in/stdin',
+                stdout_file='/in/stdout',
+                stderr_file='/in/stderr',
+                cgroup_file='/in/cgroup'))
+            others_task = gather(
+                loop.run_in_executor(None, copy_pipe, user_stdout_file, judge_stdin_file),
+                loop.run_in_executor(None, copy_pipe, judge_stdout_file, user_stdin_file),
+                read_pipe(judge_err_file, MAX_STDERR_SIZE),
+                read_pipe(user_err_file, MAX_STDERR_SIZE),
+                wait_cgroup(judge_cgroup_sock,
+                            judge_exe_task,
+                            JUDGE_TIME_MS * 1000000,
+                            JUDGE_MEM_KB * 1024,
+                            JUDGE_PROCESS_LIMIT),
+                wait_cgroup(user_cgroup_sock,
+                            user_exe_task,
+                            self.time_limit_ns,
+                            self.memory_limit_bytes,
+                            self.process_limit))
+            judge_exe_status = await judge_exe_task
+            user_exe_status = await user_exe_task
+            _, __, judge_err, user_err, (judge_time_usage_ns, judge_memory_usage_bytes), \
+                (user_time_usage_ns, user_memory_usage_bytes) = await others_task
         if judge_memory_usage_bytes >= JUDGE_TIME_MS * 1000000 or \
            judge_time_usage_ns >= JUDGE_MEM_KB * 1024:
            status = STATUS_SYSTEM_ERROR # TODO(twd2): judge error
