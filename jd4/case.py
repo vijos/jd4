@@ -21,7 +21,7 @@ CHUNK_SIZE = 32768
 MAX_STDERR_SIZE = 8192
 DEFAULT_TIME_MS = 1000
 DEFAULT_MEM_KB = 262144
-PROCESS_LIMIT = 32
+PROCESS_LIMIT = 64
 
 class CaseBase:
     def __init__(self, time_limit_ns, memory_limit_bytes, process_limit, score):

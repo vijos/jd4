@@ -18,7 +18,7 @@ _LANGS_FILE = path.join(_CONFIG_DIR, 'langs.yaml')
 _MAX_OUTPUT = 8192
 DEFAULT_TIME_MS = 20000
 DEFAULT_MEM_KB = 262144
-PROCESS_LIMIT = 32
+PROCESS_LIMIT = 64
 
 _sandbox_pool = LifoQueue()
 _langs = dict()
