@@ -29,7 +29,7 @@ except FileNotFoundError:
 
 async def save_config():
     def do_save_config():
-        with open(_CONFIG_FILE, 'wb') as file:
+        with open(_CONFIG_FILE, 'w', encoding='utf-8', errors='replace') as file:
             yaml.dump(config, file, Dumper=yaml.RoundTripDumper)
 
     await get_event_loop().run_in_executor(None, do_save_config)
