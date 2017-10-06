@@ -13,7 +13,7 @@ _COOKIES_FILE = path.join(_CONFIG_DIR, 'cookies')
 
 def _load_config():
     try:
-        with open(_CONFIG_FILE) as file:
+        with open(_CONFIG_FILE, encoding='utf-8') as file:
             return yaml.load(file, Loader=yaml.RoundTripLoader)
     except FileNotFoundError:
         logger.error('Config file %s not found.', _CONFIG_FILE)
@@ -29,7 +29,7 @@ except FileNotFoundError:
 
 async def save_config():
     def do_save_config():
-        with open(_CONFIG_FILE, 'w') as file:
+        with open(_CONFIG_FILE, 'w', encoding='utf-8') as file:
             yaml.dump(config, file, Dumper=yaml.RoundTripDumper)
 
     await get_event_loop().run_in_executor(None, do_save_config)
