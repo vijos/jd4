@@ -15,10 +15,7 @@ from jd4.status import STATUS_ACCEPTED, STATUS_COMPILE_ERROR, \
 RETRY_DELAY_SEC = 30
 
 class CompileError(Exception):
-    def __init__(self, message, time_usage_ns, memory_usage_bytes):
-        super().__init__(message)
-        self.time_usage_ns = time_usage_ns
-        self.memory_usage_bytes = memory_usage_bytes
+    pass
 
 class JudgeHandler:
     def __init__(self, session, request, ws):
@@ -52,11 +49,8 @@ class JudgeHandler:
                 await self.do_pretest()
             else:
                 raise Exception('Unsupported type: {}'.format(self.type))
-        except CompileError as e:
-            self.end(status=STATUS_COMPILE_ERROR,
-                     score=0,
-                     time_ms=e.time_usage_ns // 1000000,
-                     memory_kb=e.memory_usage_bytes // 1024)
+        except CompileError:
+            self.end(status=STATUS_COMPILE_ERROR, score=0, time_ms=0, memory_kb=0)
         except ClientError:
             raise
         except Exception as e:
@@ -89,12 +83,11 @@ class JudgeHandler:
 
     async def build(self):
         self.next(status=STATUS_COMPILING)
-        package, message, time_usage_ns, memory_usage_bytes = \
-            await shield(pool_build(self.lang, self.code))
+        package, message, _, _ = await shield(pool_build(self.lang, self.code))
         self.next(compiler_text=message)
         if not package:
             logger.debug('Compile error: %s', message)
-            raise CompileError(message, time_usage_ns, memory_usage_bytes)
+            raise CompileError(message)
         return package
 
     async def judge(self, cases_file, package):
