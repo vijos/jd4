@@ -1,4 +1,4 @@
-FROM debian:testing
+FROM debian:stretch
 COPY . /tmp/jd4
 RUN apt-get update && \
     apt-get install -y \
