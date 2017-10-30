@@ -1,6 +1,6 @@
 aiohttp
 appdirs
 cloudpickle
-colorlog
+coloredlogs
 cython
 ruamel.yaml
