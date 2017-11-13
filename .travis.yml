@@ -1,12 +1,18 @@
 sudo: required
+language: python
+python: 3.5
 
 services:
 - docker
 
-before_install:
-- docker build -t vijos/jd4 .
+install:
+- pip install -r requirements.txt
+- python setup.py build_ext --inplace
 
 script:
+- python -m unittest jd4.case_test
+- python -m unittest jd4.compare_test
+- docker build -t vijos/jd4 .
 - docker run --privileged
       -v $(readlink -f examples/config.yaml):/root/.config/jd4/config.yaml
       vijos/jd4 /bin/bash -c "source /venv/bin/activate &&
