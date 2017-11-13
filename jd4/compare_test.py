@@ -1,5 +1,3 @@
-import pyximport; pyximport.install()
-
 from io import BytesIO
 from unittest import main, TestCase
 
