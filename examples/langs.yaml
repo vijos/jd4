@@ -67,3 +67,8 @@ go:
     code_file: foo.go
     execute_file: foo
     execute_args: foo
+rb:
+    type: interpreter
+    code_file: foo.rb
+    execute_file: /usr/bin/ruby
+    execute_args: ruby foo.rb
