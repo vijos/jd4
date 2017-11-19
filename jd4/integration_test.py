@@ -3,20 +3,17 @@ from functools import wraps
 from os import path
 from unittest import TestCase, main
 
-from jd4.case import read_legacy_cases
+from jd4.case import read_legacy_cases, APlusBCase
 from jd4.cgroup import try_init_cgroup
 from jd4.log import logger
 from jd4.pool import pool_build, pool_judge
-from jd4.status import STATUS_ACCEPTED
+from jd4.status import STATUS_ACCEPTED, STATUS_WRONG_ANSWER, STATUS_RUNTIME_ERROR, \
+                       STATUS_TIME_LIMIT_EXCEEDED, STATUS_MEMORY_LIMIT_EXCEEDED
 
-def _wrap(method):
-    loop = get_event_loop()
-    @wraps(method)
-    def wrapped(*args, **kwargs):
-        return loop.run_until_complete(method(*args, **kwargs))
-    return wrapped
+def run(coro):
+    return get_event_loop().run_until_complete(coro)
 
-class APlusBTest(TestCase):
+class LanguageTest(TestCase):
     """Run A+B problem on every languages."""
     @classmethod
     def setUpClass(cls):
@@ -24,11 +21,9 @@ class APlusBTest(TestCase):
         cls.cases = list(read_legacy_cases(path.join(path.dirname(__file__),
                                                      'testdata/1000.zip')))
 
-    @_wrap
-    async def do_lang(self, lang, code):
-        logger.info('Testing language "%s"', lang)
+    def do_lang(self, lang, code):
         package, message, time_usage_ns, memory_usage_bytes = \
-            await pool_build(lang, code)
+            run(pool_build(lang, code))
         self.assertIsNotNone(package, 'Compile failed: ' + message)
         logger.info('Compiled successfully in %d ms time, %d kb memory',
                     time_usage_ns // 1000000, memory_usage_bytes // 1024)
@@ -36,7 +31,7 @@ class APlusBTest(TestCase):
             logger.warning('Compiler output is not empty: %s', message)
         for case in self.cases:
             status, score, time_usage_ns, memory_usage_bytes, stderr = \
-                await pool_judge(package, case)
+                run(pool_judge(package, case))
             self.assertEqual(status, STATUS_ACCEPTED)
             self.assertEqual(score, 10)
             self.assertEqual(stderr, b'')
@@ -60,7 +55,7 @@ int main(void) {
 }""")
 
     def test_java(self):
-            self.do_lang('java', """import java.io.IOException;
+        self.do_lang('java', """import java.io.IOException;
 import java.util.Scanner;
 public class Main {
     public static void main(String[] args) throws IOException {
@@ -121,6 +116,44 @@ func main() {
     def test_rb(self):
         self.do_lang('rb', """a, b = gets.split.map(&:to_i)
 puts(a + b)""")
+
+class StatusTest(TestCase):
+    @classmethod
+    def setUpClass(cls):
+        try_init_cgroup()
+        cls.case = APlusBCase(1, 2, 200000000, 33554432, 10)
+
+    def do_status(self, expected_status, expected_score, code):
+        package, message, time_usage_ns, memory_usage_bytes = \
+            run(pool_build('c', code))
+        self.assertIsNotNone(package, 'Compile failed: ' + message)
+        if message:
+            logger.warning('Compiler output is not empty: %s', message)
+        status, score, time_usage_ns, memory_usage_bytes, stderr = \
+            run(pool_judge(package, self.case))
+        self.assertEqual(status, expected_status)
+        self.assertEqual(score, expected_score)
+
+    def test_accepted(self):
+        self.do_status(STATUS_ACCEPTED, 10, """#include <stdio.h>
+int main(void) { puts("3"); }""")
+
+    def test_wrong_answer(self):
+        self.do_status(STATUS_WRONG_ANSWER, 0, 'int main(void) {}')
+
+    def test_time_limit_exceeded(self):
+        self.do_status(STATUS_TIME_LIMIT_EXCEEDED, 0,
+                       'int main(void) { while (1); }')
+
+    def test_memory_limit_exceeded(self):
+        self.do_status(STATUS_MEMORY_LIMIT_EXCEEDED, 0, """#include <string.h>
+char a[40000000];
+int main(void) {
+    memset(a, 0, sizeof(a));
+}""")
+
+    def test_runtime_error(self):
+        self.do_status(STATUS_RUNTIME_ERROR, 0, 'int main(void) { return 1; }')
 
 if __name__ == '__main__':
     main()

@@ -103,8 +103,8 @@ class LegacyCase(CaseBase):
             return compare_stream(ans, out)
 
 class APlusBCase(CaseBase):
-    def __init__(self, a, b):
-        super().__init__(DEFAULT_TIME_MS * 1000000, DEFAULT_MEM_KB * 1024, PROCESS_LIMIT, 10)
+    def __init__(self, a, b, time_limit_ns, memory_limit_bytes, score):
+        super().__init__(time_limit_ns, memory_limit_bytes, PROCESS_LIMIT, score)
         self.a = a
         self.b = b
 
@@ -134,25 +134,3 @@ def read_legacy_cases(file):
         open_input = partial(zip_file.open, canonical_dict[path.join('input', input.lower())])
         open_output = partial(zip_file.open, canonical_dict[path.join('output', output.lower())])
         yield LegacyCase(open_input, open_output, float(time_sec_str), mem_kb, int(score_str))
-
-if __name__ == '__main__':
-    async def main():
-        try_init_cgroup()
-        sandbox = await create_sandbox()
-        gcc = Compiler('/usr/bin/gcc', ['gcc', '-std=c99', '-o', '/out/foo', '/in/foo.c'],
-                       'foo.c', 'foo', ['foo'])
-        await gcc.prepare(sandbox, b"""#include <stdio.h>
-int main(void) {
-    int a, b;
-    scanf("%d%d", &a, &b);
-    printf("%d\\n", a + b);
-}""")
-        package, _ = await gcc.build(sandbox)
-        for case in read_legacy_cases(path.join(path.dirname(__file__),
-                                                'testdata/1000.zip')):
-            logger.info(await case.judge(sandbox, package))
-        for i in range(10):
-            logger.info(await APlusBCase(randint(0, 32767),
-                                         randint(0, 32767)).judge(sandbox, package))
-
-    get_event_loop().run_until_complete(main())
