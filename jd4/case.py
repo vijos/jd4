@@ -6,18 +6,14 @@ from functools import partial
 from io import BytesIO, TextIOWrapper
 from itertools import islice
 from os import mkfifo, path
-from random import randint
 from ruamel import yaml
 from socket import socket, AF_UNIX, SOCK_STREAM, SOCK_NONBLOCK
 from zipfile import ZipFile, is_zipfile
 
 from jd4._compare import compare_stream
-from jd4.cgroup import try_init_cgroup, wait_cgroup
-from jd4.compile import Compiler
+from jd4.cgroup import wait_cgroup
 from jd4.status import STATUS_ACCEPTED, STATUS_WRONG_ANSWER, STATUS_RUNTIME_ERROR, \
                        STATUS_TIME_LIMIT_EXCEEDED, STATUS_MEMORY_LIMIT_EXCEEDED
-from jd4.log import logger
-from jd4.sandbox import create_sandbox
 from jd4.util import read_pipe
 
 CHUNK_SIZE = 32768
@@ -106,8 +102,8 @@ class DefaultCase(CaseBase):
             return compare_stream(ans, out)
 
 class APlusBCase(CaseBase):
-    def __init__(self, a, b):
-        super().__init__(DEFAULT_TIME_MS * 1000000, DEFAULT_MEM_KB * 1024, PROCESS_LIMIT, 10)
+    def __init__(self, a, b, time_limit_ns, memory_limit_bytes, score):
+        super().__init__(time_limit_ns, memory_limit_bytes, PROCESS_LIMIT, score)
         self.a = a
         self.b = b
 
@@ -188,22 +184,3 @@ def read_cases(file):
     except FileNotFoundError:
         pass
     raise FormatError('config file not found')
-
-if __name__ == '__main__':
-    async def main():
-        try_init_cgroup()
-        sandbox = await create_sandbox()
-        gcc = Compiler('/usr/bin/gcc', ['gcc', '-std=c99', '-o', '/out/foo', '/in/foo.c'],
-                       'foo.c', 'foo', ['foo'])
-        await gcc.prepare(sandbox, b"""#include <stdio.h>
-int main(void) {
-    int a, b;
-    scanf("%d%d", &a, &b);
-    printf("%d\\n", a + b);
-}""")
-        package, _ = await gcc.build(sandbox)
-        for i in range(10):
-            logger.info(await APlusBCase(randint(0, 32767),
-                                         randint(0, 32767)).judge(sandbox, package))
-
-    get_event_loop().run_until_complete(main())
