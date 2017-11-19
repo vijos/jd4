@@ -3,7 +3,7 @@ from functools import wraps
 from os import path
 from unittest import TestCase, main
 
-from jd4.case import read_legacy_cases
+from jd4.case import read_cases
 from jd4.cgroup import try_init_cgroup
 from jd4.log import logger
 from jd4.pool import pool_build, pool_judge
@@ -21,8 +21,8 @@ class APlusBTest(TestCase):
     @classmethod
     def setUpClass(cls):
         try_init_cgroup()
-        cls.cases = list(read_legacy_cases(path.join(path.dirname(__file__),
-                                                     'testdata/1000.zip')))
+        cls.cases = list(read_cases(path.join(path.dirname(__file__),
+                                              'testdata/aplusb.tar.gz')))
 
     @_wrap
     async def do_lang(self, lang, code):
