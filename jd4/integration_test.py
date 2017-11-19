@@ -118,8 +118,8 @@ func main() {
 }
 """)
 
-    def test_ruby(self):
-        self.do_lang('rb', """a, b = gets.split(" ").map {|x| x.to_i}
+    def test_rb(self):
+        self.do_lang('rb', """a, b = gets.split.map(&:to_i)
 puts(a + b)""")
 
 if __name__ == '__main__':
