@@ -9,7 +9,7 @@ from os import mkfifo, path
 from random import randint
 from ruamel import yaml
 from socket import socket, AF_UNIX, SOCK_STREAM, SOCK_NONBLOCK
-from zipfile import ZipFile, BadZipFile
+from zipfile import ZipFile, is_zipfile
 
 from jd4._compare import compare_stream
 from jd4.cgroup import try_init_cgroup, wait_cgroup
@@ -122,27 +122,6 @@ class APlusBCase(CaseBase):
         with open(stdout_file, 'rb') as file:
             return compare_stream(BytesIO(str(self.a + self.b).encode()), file)
 
-def open_zip(file):
-    zip_file = ZipFile(file)
-    canonical_dict = dict((name.lower(), name) for name in zip_file.namelist())
-
-    def open(name):
-        try:
-            return zip_file.open(canonical_dict[name.lower()])
-        except KeyError:
-            raise FileNotFoundError(name) from None
-    return open
-
-def open_tar(file):
-    tar_file = tarfile.open(file)
-
-    def open(name):
-        try:
-            return tar_file.extractfile(name)
-        except KeyError:
-            raise FileNotFoundError(name) from None
-    return open
-
 class FormatError(Exception):
     pass
 
@@ -180,7 +159,24 @@ def read_yaml_cases(config, open):
             int(float(memory.group(1)) * MEMORY_UNITS[memory.group(2)]),
             int(case['score']))
 
-def read_opened_cases(open):
+def read_cases(file):
+    if is_zipfile(file):
+        with ZipFile(file) as zip_file:
+            canonical_dict = dict((name.lower(), name)
+                                  for name in zip_file.namelist())
+        def open(name):
+            try:
+                return ZipFile(file).open(canonical_dict[name.lower()])
+            except KeyError:
+                raise FileNotFoundError(name) from None
+    elif tarfile.is_tarfile(file):
+        def open(name):
+            try:
+                return tarfile.open(file).extractfile(name)
+            except KeyError:
+                raise FileNotFoundError(name) from None
+    else:
+        raise FormatError(file, 'not a zip file or tar file')
     try:
         config = TextIOWrapper(open('config.ini'), encoding='utf-8')
         return read_legacy_cases(config, open)
@@ -192,17 +188,6 @@ def read_opened_cases(open):
     except FileNotFoundError:
         pass
     raise FormatError('config file not found')
-
-def read_cases(file):
-    try:
-        return read_opened_cases(open_zip(file))
-    except BadZipFile:
-        pass
-    try:
-        return read_opened_cases(open_tar(file))
-    except tarfile.ReadError:
-        pass
-    raise FormatError(file, 'not a zip file or tar file')
 
 if __name__ == '__main__':
     async def main():
