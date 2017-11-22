@@ -117,6 +117,15 @@ func main() {
         self.do_lang('rb', """a, b = gets.split.map(&:to_i)
 puts(a + b)""")
 
+    def test_cs(self):
+        self.do_lang('cs', """using System;
+using System.Linq;
+class Program {
+    public static void Main(string[] args) {
+        Console.WriteLine(Console.ReadLine().Split().Select(int.Parse).Sum());
+    }
+}""")
+
 class StatusTest(TestCase):
     @classmethod
     def setUpClass(cls):
