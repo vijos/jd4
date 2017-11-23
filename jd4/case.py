@@ -1,11 +1,14 @@
 import csv
+import re
+import tarfile
 from asyncio import gather, get_event_loop
 from functools import partial
 from io import BytesIO, TextIOWrapper
 from itertools import islice
 from os import mkfifo, path
+from ruamel import yaml
 from socket import socket, AF_UNIX, SOCK_STREAM, SOCK_NONBLOCK
-from zipfile import ZipFile
+from zipfile import ZipFile, is_zipfile
 
 from jd4._compare import compare_stream
 from jd4.cgroup import wait_cgroup
@@ -81,9 +84,9 @@ def dos2unix(src, dst):
         buf = buf.replace(b'\r', b'')
         dst.write(buf)
 
-class LegacyCase(CaseBase):
-    def __init__(self, open_input, open_output, time_sec, mem_kb, score):
-        super().__init__(int(time_sec * 1e9), int(mem_kb * 1024), PROCESS_LIMIT, score)
+class DefaultCase(CaseBase):
+    def __init__(self, open_input, open_output, time_ns, memory_bytes, score):
+        super().__init__(time_ns, memory_bytes, PROCESS_LIMIT, score)
         self.open_input = open_input
         self.open_output = open_output
 
@@ -115,18 +118,69 @@ class APlusBCase(CaseBase):
         with open(stdout_file, 'rb') as file:
             return compare_stream(BytesIO(str(self.a + self.b).encode()), file)
 
-def read_legacy_cases(file):
-    zip_file = ZipFile(file)
-    canonical_dict = dict((name.lower(), name) for name in zip_file.namelist())
-    config = TextIOWrapper(zip_file.open(canonical_dict['config.ini']),
-                           encoding='utf-8', errors='replace')
+class FormatError(Exception):
+    pass
+
+def read_legacy_cases(config, open):
     num_cases = int(config.readline())
     for line in islice(csv.reader(config, delimiter='|'), num_cases):
-        input, output, time_sec_str, score_str = line[:4]
+        input, output, time_str, score_str = line[:4]
         try:
-            mem_kb = float(line[4])
+            memory_kb = float(line[4])
         except (IndexError, ValueError):
-            mem_kb = DEFAULT_MEM_KB
-        open_input = partial(zip_file.open, canonical_dict[path.join('input', input.lower())])
-        open_output = partial(zip_file.open, canonical_dict[path.join('output', output.lower())])
-        yield LegacyCase(open_input, open_output, float(time_sec_str), mem_kb, int(score_str))
+            memory_kb = DEFAULT_MEM_KB
+        yield DefaultCase(partial(open, path.join('input', input)),
+                          partial(open, path.join('output', output)),
+                          int(float(time_str) * 1000000000),
+                          int(memory_kb * 1024),
+                          int(score_str))
+
+TIME_RE = re.compile(r'([0-9]+(?:\.[0-9]*)?)([mun]?)s?')
+TIME_UNITS = {'': 1000000000, 'm': 1000000, 'u': 1000, 'n': 1}
+MEMORY_RE = re.compile(r'([0-9]+(?:\.[0-9]*)?)([kmg]?)b?')
+MEMORY_UNITS = {'': 1, 'k': 1024, 'm': 1048576, 'g': 1073741824}
+
+def read_yaml_cases(config, open):
+    for case in yaml.safe_load(config)['cases']:
+        time = TIME_RE.fullmatch(case['time'])
+        if not time:
+            raise FormatError(case['time'], 'error parsing time')
+        memory = MEMORY_RE.fullmatch(case['memory'])
+        if not memory:
+            raise FormatError(case['memory'], 'error parsing memory')
+        yield DefaultCase(
+            partial(open, case['input']),
+            partial(open, case['output']),
+            int(float(time.group(1)) * TIME_UNITS[time.group(2)]),
+            int(float(memory.group(1)) * MEMORY_UNITS[memory.group(2)]),
+            int(case['score']))
+
+def read_cases(file):
+    if is_zipfile(file):
+        with ZipFile(file) as zip_file:
+            canonical_dict = dict((name.lower(), name)
+                                  for name in zip_file.namelist())
+        def open(name):
+            try:
+                return ZipFile(file).open(canonical_dict[name.lower()])
+            except KeyError:
+                raise FileNotFoundError(name) from None
+    elif tarfile.is_tarfile(file):
+        def open(name):
+            try:
+                return tarfile.open(file).extractfile(name)
+            except KeyError:
+                raise FileNotFoundError(name) from None
+    else:
+        raise FormatError(file, 'not a zip file or tar file')
+    try:
+        config = TextIOWrapper(open('config.ini'), encoding='utf-8')
+        return read_legacy_cases(config, open)
+    except FileNotFoundError:
+        pass
+    try:
+        config = open('config.yaml')
+        return read_yaml_cases(config, open)
+    except FileNotFoundError:
+        pass
+    raise FormatError('config file not found')
