@@ -15,7 +15,9 @@ RUN apt-get update && \
             ghc \
             libjavascriptcoregtk-4.0-bin \
             golang \
-            ruby && \
+            ruby \
+            mono-runtime \
+            mono-mcs && \
     python3 -m venv /venv && \
     bash -c "source /venv/bin/activate && \
              pip install -r /tmp/jd4/requirements.txt && \
