@@ -3,7 +3,7 @@ from asyncio import gather, get_event_loop, sleep, shield, wait, FIRST_COMPLETED
 from io import BytesIO
 
 from jd4.api import VJ4Session
-from jd4.case import read_legacy_cases
+from jd4.case import read_cases
 from jd4.cache import cache_open, cache_invalidate
 from jd4.cgroup import try_init_cgroup
 from jd4.config import config, save_config
@@ -93,7 +93,7 @@ class JudgeHandler:
     async def judge(self, cases_file, package):
         loop = get_event_loop()
         self.next(status=STATUS_JUDGING, progress=0)
-        cases = list(read_legacy_cases(cases_file))
+        cases = list(read_cases(cases_file))
         total_status = STATUS_ACCEPTED
         total_score = 0
         total_time_usage_ns = 0
