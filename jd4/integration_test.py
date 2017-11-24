@@ -18,8 +18,8 @@ class LanguageTest(TestCase):
     @classmethod
     def setUpClass(cls):
         try_init_cgroup()
-        cls.cases = list(read_cases(path.join(path.dirname(__file__),
-                                              'testdata/aplusb.tar.gz')))
+        cls.cases = list(read_cases(open(path.join(
+            path.dirname(__file__), 'testdata/aplusb.tar.gz'), 'rb')))
 
     def do_lang(self, lang, code):
         package, message, time_usage_ns, memory_usage_bytes = \
