@@ -198,7 +198,8 @@ def read_cases(file):
         if not open:
             raise FormatError(file, 'not a zip file or tar file')
     try:
-        config = TextIOWrapper(open('config.ini'), encoding='utf-8')
+        config = TextIOWrapper(open('config.ini'),
+                               encoding='utf-8', errors='replace')
         return read_legacy_cases(config, open)
     except FileNotFoundError:
         pass
