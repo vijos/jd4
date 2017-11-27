@@ -54,8 +54,8 @@ class CaseBase:
                     stderr_file='/in/stderr',
                     cgroup_file='/in/cgroup'))
                 others_task = gather(
-                    loop.run_in_executor(None, self.do_stdin, stdin_file),
-                    loop.run_in_executor(None, self.do_stdout, stdout_file),
+                    loop.run_in_executor(None, self.do_input, stdin_file),
+                    loop.run_in_executor(None, self.do_output, stdout_file),
                     read_pipe(stderr_file, MAX_STDERR_SIZE),
                     wait_cgroup(cgroup_sock,
                                 execute_task,
@@ -98,15 +98,15 @@ class DefaultCase(CaseBase):
         self.open_input = open_input
         self.open_output = open_output
 
-    def do_stdin(self, stdin_file):
+    def do_input(self, input_file):
         try:
-            with self.open_input() as src, open(stdin_file, 'wb') as dst:
+            with self.open_input() as src, open(input_file, 'wb') as dst:
                 dos2unix(src, dst)
         except BrokenPipeError:
             pass
 
-    def do_stdout(self, stdout_file):
-        with self.open_output() as ans, open(stdout_file, 'rb') as out:
+    def do_output(self, output_file):
+        with self.open_output() as ans, open(output_file, 'rb') as out:
             return compare_stream(ans, out)
 
 class CustomJudgeCase:
@@ -123,7 +123,7 @@ class CustomJudgeCase:
             self.judge_lang,
             await loop.run_in_executor(None, lambda: self.open_judge().read()))
         if not judge_package:
-            return STATUS_SYSTEM_ERROR, message, 0, 0, b''
+            return STATUS_SYSTEM_ERROR, 0, 0, 0, message
         user_sandbox, judge_sandbox = await get_sandbox(2)
         try:
             async def prepare_user_sandbox():
@@ -148,12 +148,8 @@ class CustomJudgeCase:
             mkfifo(judge_stdout_file)
             judge_stderr_file = path.join(judge_sandbox.in_dir, 'stderr')
             mkfifo(judge_stderr_file)
-
-            # FIXME(iceboy): Use fd 4.
-            await loop.run_in_executor(None, lambda: dos2unix(
-                self.open_input(),
-                open(path.join(judge_sandbox.in_dir, 'input'), 'wb')))
-
+            judge_extra_file = path.join(judge_sandbox.in_dir, 'extra')
+            mkfifo(judge_extra_file)
             with socket(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK) as user_cgroup_sock, \
                  socket(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK) as judge_cgroup_sock:
                 user_cgroup_sock.bind(path.join(user_sandbox.in_dir, 'cgroup'))
@@ -171,10 +167,11 @@ class CustomJudgeCase:
                     stdin_file='/in/stdin',
                     stdout_file='/in/stdout',
                     stderr_file='/in/stderr',
-                    cgroup_file='/in/cgroup',
-                    extra_args=['/in/input']))
+                    extra_file='/in/extra',
+                    cgroup_file='/in/cgroup'))
                 others_task = gather(
-                    loop.run_in_executor(None, self.do_stdin, user_stdin_file),
+                    loop.run_in_executor(None, self.do_input, user_stdin_file),
+                    loop.run_in_executor(None, self.do_input, judge_extra_file),
                     read_pipe(user_stderr_file, MAX_STDERR_SIZE),
                     read_pipe(judge_stdout_file, MAX_STDERR_SIZE),
                     read_pipe(judge_stderr_file, MAX_STDERR_SIZE),
@@ -190,7 +187,7 @@ class CustomJudgeCase:
                                 PROCESS_LIMIT))
                 user_execute_status, judge_execute_status = await gather(
                     user_execute_task, judge_execute_task)
-                _, user_stderr, judge_stdout, judge_stderr, \
+                _, _, user_stderr, judge_stdout, judge_stderr, \
                 (user_time_usage_ns, user_memory_usage_bytes), \
                 (judge_time_usage_ns, judge_memory_usage_bytes) = \
                     await others_task
@@ -218,9 +215,9 @@ class CustomJudgeCase:
         finally:
             put_sandbox(user_sandbox, judge_sandbox)
 
-    def do_stdin(self, stdin_file):
+    def do_input(self, input_file):
         try:
-            with self.open_input() as src, open(stdin_file, 'wb') as dst:
+            with self.open_input() as src, open(input_file, 'wb') as dst:
                 dos2unix(src, dst)
         except BrokenPipeError:
             pass
@@ -231,15 +228,15 @@ class APlusBCase(CaseBase):
         self.a = a
         self.b = b
 
-    def do_stdin(self, stdin_file):
+    def do_input(self, input_file):
         try:
-            with open(stdin_file, 'w') as file:
+            with open(input_file, 'w') as file:
                 file.write('{} {}\n'.format(self.a, self.b))
         except BrokenPipeError:
             pass
 
-    def do_stdout(self, stdout_file):
-        with open(stdout_file, 'rb') as file:
+    def do_output(self, output_file):
+        with open(output_file, 'rb') as file:
             return compare_stream(BytesIO(str(self.a + self.b).encode()), file)
 
 def read_legacy_cases(config, open):
@@ -247,13 +244,13 @@ def read_legacy_cases(config, open):
     for line in islice(csv.reader(config, delimiter='|'), num_cases):
         input, output, time_str, score_str = line[:4]
         try:
-            memory_kb = float(line[4])
+            memory_bytes = int(float(line[4]) * 1024)
         except (IndexError, ValueError):
-            memory_kb = DEFAULT_MEM_KB
+            memory_bytes = DEFAULT_MEMORY_BYTES
         yield DefaultCase(partial(open, path.join('input', input)),
                           partial(open, path.join('output', output)),
                           int(float(time_str) * 1000000000),
-                          int(memory_kb * 1024),
+                          memory_bytes,
                           int(score_str))
 
 def read_yaml_cases(config, open):

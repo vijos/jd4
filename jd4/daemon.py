@@ -165,4 +165,5 @@ async def daemon():
             logger.info('Retrying after %d seconds', RETRY_DELAY_SEC)
             await sleep(RETRY_DELAY_SEC)
 
-get_event_loop().run_until_complete(daemon())
+if __name__ == '__main__':
+    get_event_loop().run_until_complete(daemon())

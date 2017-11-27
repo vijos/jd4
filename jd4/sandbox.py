@@ -1,7 +1,8 @@
 import pickle
 from asyncio import gather, get_event_loop, open_connection
 from os import close as os_close, chdir, dup2, execve, fork, mkdir, \
-               open as os_open, path, spawnve, waitpid, O_RDONLY, O_WRONLY, P_WAIT
+               open as os_open, path, set_inheritable, spawnve, waitpid, \
+               O_RDONLY, O_WRONLY, P_WAIT
 from pty import STDIN_FILENO, STDOUT_FILENO, STDERR_FILENO
 from shutil import rmtree
 from socket import socketpair
@@ -14,7 +15,7 @@ from jd4.cgroup import enter_cgroup
 from jd4.log import logger
 from jd4.util import remove_under, wait_and_reap_zombies
 
-MNT_DETACH = 2
+EXTRA_FILENO = 3
 SPAWN_ENV = {'PATH': '/usr/bin:/bin', 'HOME': '/'}
 
 SANDBOX_BACKDOOR = 1
@@ -80,6 +81,7 @@ def _handle_execute(execute_file,
                     stdin_file,
                     stdout_file,
                     stderr_file,
+                    extra_file,
                     cgroup_file):
     pid = fork()
     if not pid:
@@ -96,6 +98,10 @@ def _handle_execute(execute_file,
             fd = os_open(stderr_file, O_WRONLY)
             dup2(fd, STDERR_FILENO)
             os_close(fd)
+        if extra_file:
+            fd = os_open(extra_file, O_RDONLY)
+            assert fd == EXTRA_FILENO
+            set_inheritable(fd, True)
         if cgroup_file:
             enter_cgroup(cgroup_file)
         execve(execute_file, execute_args, SPAWN_ENV)
@@ -161,8 +167,10 @@ def create_sandboxes(n):
     return gather(*[helper(*sp) for sp in sandbox_params])
 
 if __name__ == '__main__':
+    sandboxes_task = create_sandboxes(1)
+
     async def main():
-        sandbox, = await create_sandboxes(1)
+        sandbox, = await sandboxes_task
         logger.info('sandbox_dir: %s', sandbox.sandbox_dir)
         logger.info('return value: %d', await sandbox.backdoor())
 

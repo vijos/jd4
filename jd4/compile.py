@@ -32,14 +32,15 @@ class Executable:
                       stdin_file=None,
                       stdout_file=None,
                       stderr_file=None,
-                      cgroup_file=None,
-                      extra_args=()):
+                      extra_file=None,
+                      cgroup_file=None):
         return await sandbox.call(SANDBOX_EXECUTE,
                                   self.execute_file,
-                                  [*self.execute_args, *extra_args],
+                                  self.execute_args,
                                   stdin_file,
                                   stdout_file,
                                   stderr_file,
+                                  extra_file,
                                   cgroup_file)
 
 class Package:

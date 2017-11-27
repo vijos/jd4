@@ -1,13 +1,20 @@
 import json
-from aiohttp import ClientSession
+from aiohttp import ClientSession, CookieJar
 from asyncio import get_event_loop
+from appdirs import user_config_dir
 from os import path
 from urllib.parse import urljoin
 
-from jd4.config import cookie_jar, save_cookies
 from jd4.log import logger
 
-CHUNK_SIZE = 32768
+_CHUNK_SIZE = 32768
+_CONFIG_DIR = user_config_dir('jd4')
+_COOKIES_FILE = path.join(_CONFIG_DIR, 'cookies')
+_COOKIE_JAR = CookieJar(unsafe=True)
+try:
+    _COOKIE_JAR.load(_COOKIES_FILE)
+except FileNotFoundError:
+    pass
 
 class VJ4Error(Exception):
     def __init__(self, name, message, *args):
@@ -27,7 +34,7 @@ async def json_response_to_dict(response):
 
 class VJ4Session(ClientSession):
     def __init__(self, server_url):
-        super().__init__(cookie_jar=cookie_jar)
+        super().__init__(cookie_jar=_COOKIE_JAR)
         self.server_url = server_url
 
     def full_url(self, *parts):
@@ -69,7 +76,8 @@ class VJ4Session(ClientSession):
         except VJ4Error as e:
             if e.name == 'PrivilegeError':
                 await self.login(uname, password)
-                await save_cookies()
+                await get_event_loop().run_in_executor(
+                    None, lambda: _COOKIE_JAR.save(_COOKIES_FILE))
             else:
                 raise
 
@@ -93,7 +101,7 @@ class VJ4Session(ClientSession):
                 raise Exception('http error ' + str(response.status))
             with open(save_path, 'wb') as save_file:
                 while True:
-                    buffer = await response.content.read(CHUNK_SIZE)
+                    buffer = await response.content.read(_CHUNK_SIZE)
                     if not buffer:
                         break
                     await loop.run_in_executor(None, save_file.write, buffer)
