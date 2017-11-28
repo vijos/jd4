@@ -93,13 +93,13 @@ class DefaultCase(CaseBase):
 
     def do_stdin(self, stdin_file):
         try:
-            with self.open_input() as src, open(stdin_file, 'wb') as dst:
+            with open(stdin_file, 'wb') as dst, self.open_input() as src:
                 dos2unix(src, dst)
         except BrokenPipeError:
             pass
 
     def do_stdout(self, stdout_file):
-        with self.open_output() as ans, open(stdout_file, 'rb') as out:
+        with open(stdout_file, 'rb') as out, self.open_output() as ans:
             return compare_stream(ans, out)
 
 class APlusBCase(CaseBase):
