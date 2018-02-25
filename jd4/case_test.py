@@ -20,7 +20,7 @@ class CaseTest(TestCase):
     def test_yaml_case(self):
         count = 0
         with open(path.join(path.dirname(__file__),
-                            'testdata/aplusb.tar.gz'), 'rb') as file:
+                            'testdata/aplusb.zip'), 'rb') as file:
             for case in read_cases(file):
                 self.assertEqual(case.time_limit_ns, 1000000000)
                 self.assertEqual(case.memory_limit_bytes, 33554432)
