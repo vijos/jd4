@@ -1,3 +1,5 @@
+import pyximport; pyximport.install()
+
 import csv
 import re
 from asyncio import gather, get_event_loop

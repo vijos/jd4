@@ -1,3 +1,5 @@
+import pyximport; pyximport.install()
+
 import cloudpickle
 from asyncio import gather, get_event_loop, open_connection
 from os import fork, listdir, mkdir, path, remove, spawnve, waitpid, P_WAIT
