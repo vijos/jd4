@@ -11,7 +11,6 @@ from tempfile import mkdtemp
 
 from jd4._sandbox import create_namespace, enter_namespace
 from jd4.log import logger
-from jd4.util import write_text_file
 
 MNT_DETACH = 2
 

@@ -67,3 +67,15 @@ go:
     code_file: foo.go
     execute_file: foo
     execute_args: foo
+rb:
+    type: interpreter
+    code_file: foo.rb
+    execute_file: /usr/bin/ruby
+    execute_args: ruby foo.rb
+cs:
+    type: compiler
+    compiler_file: /usr/bin/mcs
+    compiler_args: csc -optimize+ -out:/out/foo.exe /in/foo.cs
+    code_file: foo.cs
+    execute_file: /usr/bin/mono
+    execute_args: mono foo.exe

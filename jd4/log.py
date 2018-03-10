@@ -1,27 +1,16 @@
-from logging import getLogger
-from logging.config import dictConfig
+import coloredlogs
+import os
+from coloredlogs import syslog
+from logging import getLogger, DEBUG
 
-dictConfig({
-    'version': 1,
-    'handlers': {
-      'console': {
-        'class': 'logging.StreamHandler',
-        'formatter': 'colored',
-      },
-    },
-    'formatters': {
-      'colored': {
-        '()': 'colorlog.ColoredFormatter',
-        'format': '%(log_color)s[%(levelname).1s '
-                  '%(asctime)s %(module)s:%(lineno)d]%(reset)s %(message)s',
-        'datefmt': '%y%m%d %H:%M:%S'
-      }
-    },
-    'root': {
-      'level': 'DEBUG',
-      'handlers': ['console'],
-    },
-    'disable_existing_loggers': False,
-})
+if 'JD4_USE_SYSLOG' not in os.environ:
+    coloredlogs.install(
+        level=DEBUG,
+        fmt='[%(levelname).1s %(asctime)s %(module)s:%(lineno)d] %(message)s',
+        datefmt='%y%m%d %H:%M:%S')
+else:
+    syslog.enable_system_logging(
+        level=DEBUG,
+        fmt='jd4[%(process)d] %(programname)s %(levelname).1s %(message)s')
 
 logger = getLogger(__name__)

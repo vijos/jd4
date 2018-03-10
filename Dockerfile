@@ -1,4 +1,4 @@
-FROM debian:testing
+FROM debian:stretch
 COPY . /tmp/jd4
 RUN apt-get update && \
     apt-get install -y \
@@ -14,7 +14,10 @@ RUN apt-get update && \
             rustc \
             ghc \
             libjavascriptcoregtk-4.0-bin \
-            golang && \
+            golang \
+            ruby \
+            mono-runtime \
+            mono-mcs && \
     python3 -m venv /venv && \
     bash -c "source /venv/bin/activate && \
              pip install -r /tmp/jd4/requirements.txt && \

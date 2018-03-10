@@ -1,29 +1,28 @@
 import pyximport; pyximport.install()
 
 import csv
+import re
 from asyncio import gather, get_event_loop
 from functools import partial
-from io import BytesIO, TextIOWrapper
+from io import BytesIO, IOBase, TextIOWrapper
 from itertools import islice
 from os import mkfifo, path
-from random import randint
+from ruamel import yaml
 from socket import socket, AF_UNIX, SOCK_STREAM, SOCK_NONBLOCK
-from zipfile import ZipFile
+from threading import RLock
+from zipfile import ZipFile, BadZipFile
 
 from jd4._compare import compare_stream
-from jd4.cgroup import try_init_cgroup, wait_cgroup
-from jd4.compile import Compiler
+from jd4.cgroup import wait_cgroup
 from jd4.status import STATUS_ACCEPTED, STATUS_WRONG_ANSWER, STATUS_RUNTIME_ERROR, \
                        STATUS_TIME_LIMIT_EXCEEDED, STATUS_MEMORY_LIMIT_EXCEEDED
-from jd4.log import logger
-from jd4.sandbox import create_sandbox
 from jd4.util import read_pipe
 
 CHUNK_SIZE = 32768
 MAX_STDERR_SIZE = 8192
 DEFAULT_TIME_MS = 1000
 DEFAULT_MEM_KB = 262144
-PROCESS_LIMIT = 32
+PROCESS_LIMIT = 64
 
 class CaseBase:
     def __init__(self, time_limit_ns, memory_limit_bytes, process_limit, score):
@@ -87,26 +86,26 @@ def dos2unix(src, dst):
         buf = buf.replace(b'\r', b'')
         dst.write(buf)
 
-class LegacyCase(CaseBase):
-    def __init__(self, open_input, open_output, time_sec, mem_kb, score):
-        super().__init__(int(time_sec * 1e9), int(mem_kb * 1024), PROCESS_LIMIT, score)
+class DefaultCase(CaseBase):
+    def __init__(self, open_input, open_output, time_ns, memory_bytes, score):
+        super().__init__(time_ns, memory_bytes, PROCESS_LIMIT, score)
         self.open_input = open_input
         self.open_output = open_output
 
     def do_stdin(self, stdin_file):
         try:
-            with self.open_input() as src, open(stdin_file, 'wb') as dst:
+            with open(stdin_file, 'wb') as dst, self.open_input() as src:
                 dos2unix(src, dst)
         except BrokenPipeError:
             pass
 
     def do_stdout(self, stdout_file):
-        with self.open_output() as ans, open(stdout_file, 'rb') as out:
+        with open(stdout_file, 'rb') as out, self.open_output() as ans:
             return compare_stream(ans, out)
 
 class APlusBCase(CaseBase):
-    def __init__(self, a, b):
-        super().__init__(DEFAULT_TIME_MS * 1000000, DEFAULT_MEM_KB * 1024, PROCESS_LIMIT, 10)
+    def __init__(self, a, b, time_limit_ns, memory_limit_bytes, score):
+        super().__init__(time_limit_ns, memory_limit_bytes, PROCESS_LIMIT, score)
         self.a = a
         self.b = b
 
@@ -121,40 +120,62 @@ class APlusBCase(CaseBase):
         with open(stdout_file, 'rb') as file:
             return compare_stream(BytesIO(str(self.a + self.b).encode()), file)
 
-def read_legacy_cases(file):
-    zip_file = ZipFile(file)
-    canonical_dict = dict((name.lower(), name) for name in zip_file.namelist())
-    config = TextIOWrapper(zip_file.open(canonical_dict['config.ini']),
-                           encoding='utf-8', errors='replace')
+class FormatError(Exception):
+    pass
+
+def read_legacy_cases(config, open):
     num_cases = int(config.readline())
     for line in islice(csv.reader(config, delimiter='|'), num_cases):
-        input, output, time_sec_str, score_str = line[:4]
+        input, output, time_str, score_str = line[:4]
         try:
-            mem_kb = float(line[4])
+            memory_kb = float(line[4])
         except (IndexError, ValueError):
-            mem_kb = DEFAULT_MEM_KB
-        open_input = partial(zip_file.open, canonical_dict[path.join('input', input.lower())])
-        open_output = partial(zip_file.open, canonical_dict[path.join('output', output.lower())])
-        yield LegacyCase(open_input, open_output, float(time_sec_str), mem_kb, int(score_str))
+            memory_kb = DEFAULT_MEM_KB
+        yield DefaultCase(partial(open, path.join('input', input)),
+                          partial(open, path.join('output', output)),
+                          int(float(time_str) * 1000000000),
+                          int(memory_kb * 1024),
+                          int(score_str))
 
-if __name__ == '__main__':
-    async def main():
-        try_init_cgroup()
-        sandbox = await create_sandbox()
-        gcc = Compiler('/usr/bin/gcc', ['gcc', '-std=c99', '-o', '/out/foo', '/in/foo.c'],
-                       'foo.c', 'foo', ['foo'])
-        await gcc.prepare(sandbox, b"""#include <stdio.h>
-int main(void) {
-    int a, b;
-    scanf("%d%d", &a, &b);
-    printf("%d\\n", a + b);
-}""")
-        package, _ = await gcc.build(sandbox)
-        for case in read_legacy_cases(path.join(path.dirname(__file__),
-                                                'testdata/1000.zip')):
-            logger.info(await case.judge(sandbox, package))
-        for i in range(10):
-            logger.info(await APlusBCase(randint(0, 32767),
-                                         randint(0, 32767)).judge(sandbox, package))
+TIME_RE = re.compile(r'([0-9]+(?:\.[0-9]*)?)([mun]?)s?')
+TIME_UNITS = {'': 1000000000, 'm': 1000000, 'u': 1000, 'n': 1}
+MEMORY_RE = re.compile(r'([0-9]+(?:\.[0-9]*)?)([kmg]?)b?')
+MEMORY_UNITS = {'': 1, 'k': 1024, 'm': 1048576, 'g': 1073741824}
 
-    get_event_loop().run_until_complete(main())
+def read_yaml_cases(config, open):
+    for case in yaml.safe_load(config)['cases']:
+        time = TIME_RE.fullmatch(case['time'])
+        if not time:
+            raise FormatError(case['time'], 'error parsing time')
+        memory = MEMORY_RE.fullmatch(case['memory'])
+        if not memory:
+            raise FormatError(case['memory'], 'error parsing memory')
+        yield DefaultCase(
+            partial(open, case['input']),
+            partial(open, case['output']),
+            int(float(time.group(1)) * TIME_UNITS[time.group(2)]),
+            int(float(memory.group(1)) * MEMORY_UNITS[memory.group(2)]),
+            int(case['score']))
+
+def read_cases(file):
+    zip_file = ZipFile(file)
+    canonical_dict = dict((name.lower(), name)
+                          for name in zip_file.namelist())
+
+    def open(name):
+        try:
+            return zip_file.open(canonical_dict[name.lower()])
+        except KeyError:
+            raise FileNotFoundError(name) from None
+    try:
+        config = TextIOWrapper(open('config.ini'),
+                               encoding='utf-8', errors='replace')
+        return read_legacy_cases(config, open)
+    except FileNotFoundError:
+        pass
+    try:
+        config = open('config.yaml')
+        return read_yaml_cases(config, open)
+    except FileNotFoundError:
+        pass
+    raise FormatError('config file not found')
