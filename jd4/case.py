@@ -1,5 +1,5 @@
 import csv
-import tarfile
+import re
 from asyncio import gather, get_event_loop
 from functools import partial
 from io import BytesIO, TextIOWrapper
@@ -100,13 +100,13 @@ class DefaultCase(CaseBase):
 
     def do_input(self, input_file):
         try:
-            with self.open_input() as src, open(input_file, 'wb') as dst:
+            with open(input_file, 'wb') as dst, self.open_input() as src:
                 dos2unix(src, dst)
         except BrokenPipeError:
             pass
 
     def do_output(self, output_file):
-        with self.open_output() as ans, open(output_file, 'rb') as out:
+        with open(output_file, 'rb') as out, self.open_output() as ans:
             return compare_stream(ans, out)
 
 class CustomJudgeCase:
@@ -268,49 +268,19 @@ def read_yaml_cases(config, open):
                                   partial(open, case['judge']),
                                   path.splitext(case['judge'])[1][1:])
 
-def try_open_zip(file):
-    try:
-        zip_file = ZipFile(file)
-    except BadZipFile:
-        return None
+def read_cases(file):
+    zip_file = ZipFile(file)
     canonical_dict = dict((name.lower(), name)
                           for name in zip_file.namelist())
+
     def open(name):
         try:
             return zip_file.open(canonical_dict[name.lower()])
         except KeyError:
             raise FileNotFoundError(name) from None
-    return open
-
-def try_open_tar(file):
     try:
-        tar_file = tarfile.open(fileobj=file)
-    except tarfile.TarError:
-        return None
-    lock = RLock()
-    def open(name):
-        try:
-            with lock:
-                file = tar_file.extractfile(name)
-        except KeyError:
-            raise FileNotFoundError(name) from None
-        unlocked_read = file.read
-        def locked_read(n=-1):
-            with lock:
-                return unlocked_read(n)
-        file.read = locked_read
-        return file
-    return open
-
-def read_cases(file):
-    open = try_open_zip(file)
-    if not open:
-        file.seek(0)
-        open = try_open_tar(file)
-        if not open:
-            raise FormatError(file, 'not a zip file or tar file')
-    try:
-        config = TextIOWrapper(open('config.ini'), encoding='utf-8')
+        config = TextIOWrapper(open('config.ini'),
+                               encoding='utf-8', errors='replace')
         return read_legacy_cases(config, open)
     except FileNotFoundError:
         pass
