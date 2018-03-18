@@ -168,7 +168,7 @@ class CustomJudgeTest(TestCase):
     def setUpClass(cls):
         try_init_cgroup()
         cls.cases = list(read_cases(open(path.join(
-            path.dirname(__file__), 'testdata/decompose-sum.tar.gz'), 'rb')))
+            path.dirname(__file__), 'testdata/decompose-sum.zip'), 'rb')))
 
     def do_status(self, expected_status, expected_score, code):
         package, message, time_usage_ns, memory_usage_bytes = \
