@@ -100,8 +100,11 @@ def _handle_execute(execute_file,
             os_close(fd)
         if extra_file:
             fd = os_open(extra_file, O_RDONLY)
-            assert fd == EXTRA_FILENO
-            set_inheritable(fd, True)
+            if fd == EXTRA_FILENO:
+                set_inheritable(fd, True)
+            else:
+                dup2(fd, EXTRA_FILENO)
+                os_close(fd)
         if cgroup_file:
             enter_cgroup(cgroup_file)
         execve(execute_file, execute_args, SPAWN_ENV)
