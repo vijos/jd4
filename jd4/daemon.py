@@ -6,9 +6,9 @@ from jd4.api import VJ4Session
 from jd4.case import read_cases
 from jd4.cache import cache_open, cache_invalidate
 from jd4.cgroup import try_init_cgroup
+from jd4.compile import build
 from jd4.config import config, save_config
 from jd4.log import logger
-from jd4.pool import pool_build, pool_judge
 from jd4.status import STATUS_ACCEPTED, STATUS_COMPILE_ERROR, \
     STATUS_SYSTEM_ERROR, STATUS_JUDGING, STATUS_COMPILING
 
@@ -83,7 +83,7 @@ class JudgeHandler:
 
     async def build(self):
         self.next(status=STATUS_COMPILING)
-        package, message, _, _ = await shield(pool_build(self.lang, self.code))
+        package, message, _, _ = await shield(build(self.lang, self.code.encode()))
         self.next(compiler_text=message)
         if not package:
             logger.debug('Compile error: %s', message)
@@ -100,7 +100,7 @@ class JudgeHandler:
         total_memory_usage_bytes = 0
         judge_tasks = list()
         for case in cases:
-            judge_tasks.append(loop.create_task(pool_judge(package, case)))
+            judge_tasks.append(loop.create_task(case.judge(package)))
         for index, judge_task in enumerate(judge_tasks):
             status, score, time_usage_ns, memory_usage_bytes, stderr = await shield(judge_task)
             if self.type == 1:
@@ -165,4 +165,5 @@ async def daemon():
             logger.info('Retrying after %d seconds', RETRY_DELAY_SEC)
             await sleep(RETRY_DELAY_SEC)
 
-get_event_loop().run_until_complete(daemon())
+if __name__ == '__main__':
+    get_event_loop().run_until_complete(daemon())

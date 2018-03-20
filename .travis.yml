@@ -10,6 +10,8 @@ install:
 - python setup.py build_ext --inplace
 
 script:
+- mkdir -p ~/.config/jd4 &&
+      cp examples/config.yaml examples/langs.yaml ~/.config/jd4/
 - python -m unittest -v jd4.case_test jd4.compare_test
 - docker build -t vijos/jd4 .
 - docker run --privileged
