@@ -133,6 +133,7 @@ async def _compiler_build(compiler,
                                  wait_cgroup(cgroup_sock,
                                              build_task,
                                              time_limit_ns,
+                                             time_limit_ns,
                                              memory_limit_bytes,
                                              process_limit))
             package, status = await build_task

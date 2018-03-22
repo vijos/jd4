@@ -60,6 +60,7 @@ class CaseBase:
                     wait_cgroup(cgroup_sock,
                                 execute_task,
                                 self.time_limit_ns,
+                                self.time_limit_ns,
                                 self.memory_limit_bytes,
                                 self.process_limit))
                 execute_status = await execute_task
@@ -178,11 +179,13 @@ class CustomJudgeCase:
                     wait_cgroup(user_cgroup_sock,
                                 user_execute_task,
                                 self.time_ns,
+                                self.time_ns,
                                 self.memory_bytes,
                                 PROCESS_LIMIT),
                     wait_cgroup(judge_cgroup_sock,
                                 judge_execute_task,
                                 DEFAULT_TIME_NS,
+                                self.time_ns + DEFAULT_TIME_NS,
                                 DEFAULT_MEMORY_BYTES,
                                 PROCESS_LIMIT))
                 user_execute_status, judge_execute_status = await gather(

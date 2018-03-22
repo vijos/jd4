@@ -107,7 +107,8 @@ def enter_cgroup(socket_path):
 def _get_idle():
     return float(read_text_file('/proc/uptime').split()[1])
 
-async def wait_cgroup(sock, execute_task, time_limit_ns, memory_limit_bytes, process_limit):
+async def wait_cgroup(sock, execute_task, cpu_limit_ns, idle_limit_ns,
+                      memory_limit_bytes, process_limit):
     cgroup = CGroup()
     try:
         cgroup.memory_limit_bytes = memory_limit_bytes
@@ -117,13 +118,16 @@ async def wait_cgroup(sock, execute_task, time_limit_ns, memory_limit_bytes, pro
 
         while True:
             cpu_usage_ns = cgroup.cpu_usage_ns
+            cpu_remain_ns = cpu_limit_ns - cpu_usage_ns
+            if cpu_remain_ns <= 0:
+                return cpu_usage_ns, cgroup.memory_usage_bytes
             idle_usage_ns = int((_get_idle() - start_idle) / cpu_count() * 1e9)
-            time_usage_ns = max(cpu_usage_ns, idle_usage_ns)
-            time_remain_ns = time_limit_ns - time_usage_ns
-            if time_remain_ns <= 0:
-                return time_usage_ns, cgroup.memory_usage_bytes
+            idle_remain_ns = idle_limit_ns - idle_usage_ns
+            if idle_remain_ns <= 0:
+                return idle_usage_ns, cgroup.memory_usage_bytes
             try:
-                await wait_for(shield(execute_task), (time_remain_ns + WAIT_JITTER_NS) / 1e9)
+                await wait_for(shield(execute_task),
+                               (min(cpu_remain_ns, idle_remain_ns) + WAIT_JITTER_NS) / 1e9)
                 return cgroup.cpu_usage_ns, cgroup.memory_usage_bytes
             except TimeoutError:
                 pass
