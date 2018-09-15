@@ -79,3 +79,8 @@ cs:
     code_file: foo.cs
     execute_file: /usr/bin/mono
     execute_args: mono foo.exe
+jl:
+    type: interpreter
+    code_file: foo.jl
+    execute_file: /usr/bin/julia
+    execute_args: julia foo.jl

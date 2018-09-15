@@ -125,6 +125,9 @@ class Program {
     }
 }""")
 
+    def test_jl(self):
+        self.do_lang('jl', b'println(sum(parse(Int, x) for x in split(readline())))')
+
 class StatusTest(TestCase):
     @classmethod
     def setUpClass(cls):

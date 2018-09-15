@@ -246,10 +246,10 @@ def read_legacy_cases(config, open):
     num_cases = int(config.readline())
     for line in islice(csv.reader(config, delimiter='|'), num_cases):
         input, output, time_str, score_str = line[:4]
-        try:
-            memory_bytes = int(float(line[4]) * 1024)
-        except (IndexError, ValueError):
-            memory_bytes = DEFAULT_MEMORY_BYTES
+        #try:
+        #    memory_bytes = int(float(line[4]) * 1024)
+        #except (IndexError, ValueError):
+        memory_bytes = DEFAULT_MEMORY_BYTES
         yield DefaultCase(partial(open, path.join('input', input)),
                           partial(open, path.join('output', output)),
                           int(float(time_str) * 1000000000),
