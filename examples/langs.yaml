@@ -27,15 +27,19 @@ java:
     execute_file: /usr/bin/java
     execute_args: java Main
 py:
-    type: interpreter
+    type: compiler
+    compiler_file: /usr/bin/python
+    compiler_args: python -c "import py_compile; py_compile.compile('/in/foo.py', '/out/foo.pyc')"
     code_file: foo.py
     execute_file: /usr/bin/python
-    execute_args: python foo.py
+    execute_args: python foo.pyc
 py3:
-    type: interpreter
+    type: compiler
+    compiler_file: /usr/bin/python3
+    compiler_args: python3 -c "import py_compile; py_compile.compile('/in/foo.py', '/out/foo.pyc')"
     code_file: foo.py
     execute_file: /usr/bin/python3
-    execute_args: python3 foo.py
+    execute_args: python3 foo.pyc
 php:
     type: interpreter
     code_file: foo.php
