@@ -29,14 +29,14 @@ java:
 py:
     type: compiler
     compiler_file: /usr/bin/python
-    compiler_args: python -c "import py_compile; py_compile.compile('/in/foo.py', '/out/foo.pyc')"
+    compiler_args: python -c "import py_compile; py_compile.compile('/in/foo.py', '/out/foo.pyc', doraise=True)"
     code_file: foo.py
     execute_file: /usr/bin/python
     execute_args: python foo.pyc
 py3:
     type: compiler
     compiler_file: /usr/bin/python3
-    compiler_args: python3 -c "import py_compile; py_compile.compile('/in/foo.py', '/out/foo.pyc')"
+    compiler_args: python3 -c "import py_compile; py_compile.compile('/in/foo.py', '/out/foo.pyc', doraise=True)"
     code_file: foo.py
     execute_file: /usr/bin/python3
     execute_args: python3 foo.pyc
