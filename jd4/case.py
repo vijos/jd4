@@ -1,4 +1,5 @@
 import csv
+import json
 import re
 from asyncio import gather, get_event_loop
 from functools import partial
@@ -271,6 +272,21 @@ def read_yaml_cases(config, open):
                                   partial(open, case['judge']),
                                   path.splitext(case['judge'])[1][1:])
 
+def read_json_cases(config, open):
+    data = json.load(config)
+    memory = int(float(data['mem']) * 1024)
+    time = int(float(data['time']) * 1000000000)
+    score = int(100 / data['cases'])
+    for i in range(1,data['cases']+1):
+        try:
+            yield DefaultCase(partial(open, i+'.in'),
+                              partial(open, i+'.out'),
+                              time,
+                              memory,
+                              score)
+        except:
+            pass
+
 def read_cases(file):
     zip_file = ZipFile(file)
     canonical_dict = dict((name.lower(), name)
@@ -290,6 +306,11 @@ def read_cases(file):
     try:
         config = open('config.yaml')
         return read_yaml_cases(config, open)
+    except FileNotFoundError:
+        pass
+    try:
+        config = open('config.json')
+        return read_json_cases(config, open)
     except FileNotFoundError:
         pass
     raise FormatError('config file not found')
