@@ -1,5 +1,4 @@
 import csv
-import json
 import re
 from asyncio import gather, get_event_loop
 from functools import partial
@@ -258,34 +257,28 @@ def read_legacy_cases(config, open):
                           int(score_str))
 
 def read_yaml_cases(config, open):
-    for case in yaml.safe_load(config)['cases']:
-        if 'judge' not in case:
-            yield DefaultCase(partial(open, case['input']),
-                              partial(open, case['output']),
-                              parse_time_ns(case['time']),
-                              parse_memory_bytes(case['memory']),
-                              int(case['score']))
-        else:
-            yield CustomJudgeCase(partial(open, case['input']),
+    cfg = yaml.safe_load(config)
+    if 'cases' not in cfg:
+        for i in range(1,cfg['count']+1):
+            yield CustomJudgeCase(partial(open, i+'.in'),
+                                  partial(open, i+'.out'),
+                                  parse_time_ns(cfg['time']),
+                                  parse_memory_bytes(cfg['memory']),
+                                  int(100/cfg['count']))
+    else:
+        for case in cfg['cases']:
+            if 'judge' not in case:
+                yield DefaultCase(partial(open, case['input']),
+                                  partial(open, case['output']),
                                   parse_time_ns(case['time']),
                                   parse_memory_bytes(case['memory']),
-                                  partial(open, case['judge']),
-                                  path.splitext(case['judge'])[1][1:])
-
-def read_json_cases(config, open):
-    data = json.load(config)
-    memory = int(float(data['mem']) * 1024)
-    time = int(float(data['time']) * 1000000000)
-    score = int(100 / data['cases'])
-    for i in range(1,data['cases']+1):
-        try:
-            yield DefaultCase(partial(open, i+'.in'),
-                              partial(open, i+'.out'),
-                              time,
-                              memory,
-                              score)
-        except:
-            pass
+                                  int(case['score']))
+            else:
+                yield CustomJudgeCase(partial(open, case['input']),
+                                      parse_time_ns(case['time']),
+                                      parse_memory_bytes(case['memory']),
+                                      partial(open, case['judge']),
+                                      path.splitext(case['judge'])[1][1:])
 
 def read_cases(file):
     zip_file = ZipFile(file)
@@ -306,11 +299,6 @@ def read_cases(file):
     try:
         config = open('config.yaml')
         return read_yaml_cases(config, open)
-    except FileNotFoundError:
-        pass
-    try:
-        config = open('config.json')
-        return read_json_cases(config, open)
     except FileNotFoundError:
         pass
     raise FormatError('config file not found')
