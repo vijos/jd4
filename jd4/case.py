@@ -4,7 +4,7 @@ from asyncio import gather, get_event_loop
 from functools import partial
 from io import BytesIO, TextIOWrapper
 from itertools import islice
-from os import link, mkfifo, path
+from os import link, mkfifo, path, listdir
 from ruamel import yaml
 from socket import socket, AF_UNIX, SOCK_STREAM, SOCK_NONBLOCK
 from threading import RLock
@@ -256,15 +256,33 @@ def read_legacy_cases(config, open):
                           memory_bytes,
                           int(score_str))
 
-def read_yaml_cases(config, open):
-    cfg = yaml.safe_load(config)
+def read_yaml_cases(config, open, zip_file):
+    try:
+        cfg = yaml.safe_load(config)
+    except:
+        pass
     if 'cases' not in cfg:
-        for i in range(1,cfg['count']+1):
-            yield CustomJudgeCase(partial(open, i+'.in'),
-                                  partial(open, i+'.out'),
+        if 'time' not in cfg:
+            cfg['time'] = 1
+        if 'memory' not in cfg:
+            cfg['memory'] = 128*1024
+        cnt = 0
+        files = zip_file.namelist()
+        prefix = ''
+        tests = []
+        for i in files:
+            match = re.match(r'([a-zA-Z]*)([0-9]*)\.in' , i, re.M|re.I)
+            if match:
+                prefix = (match.group(1))
+                tests.append(match.group(2))
+                cnt = cnt + 1
+        tests.sort()
+        for i in tests:
+            yield CustomJudgeCase(partial(open, prefix + str(i) + '.in'),
+                                  partial(open, prefix + str(i) + '.out'),
                                   parse_time_ns(cfg['time']),
                                   parse_memory_bytes(cfg['memory']),
-                                  int(100/cfg['count']))
+                                  int(100/cnt))
     else:
         for case in cfg['cases']:
             if 'judge' not in case:
@@ -298,7 +316,7 @@ def read_cases(file):
         pass
     try:
         config = open('config.yaml')
-        return read_yaml_cases(config, open)
+        return read_yaml_cases(config, open, zip_file)
     except FileNotFoundError:
         pass
     raise FormatError('config file not found')
