@@ -260,27 +260,28 @@ def read_yaml_cases(config, open, zip_file):
     try:
         cfg = yaml.safe_load(config)
     except:
-        pass
+        raise FormatError('Invalid config file')
     if 'cases' not in cfg:
+        re_input = re.compile(r'([a-zA-Z]*)([0-9]*)\.in')
         if 'time' not in cfg:
-            cfg['time'] = '1'
+            cfg['time'] = '1s'
         if 'memory' not in cfg:
-            cfg['memory'] = '134217728'
+            cfg['memory'] = '128m'
         cnt = 0
         files = zip_file.namelist()
         prefix = ''
-        tests = []
+        cases = []
         for i in files:
-            match = re.match(r'([a-zA-Z]*)([0-9]*)\.in' , i, re.M|re.I)
+            match = re_input.match(i)
             if match:
                 prefix = (match.group(1))
-                tests.append(match.group(2))
+                cases.append(match.group(2))
                 cnt = cnt + 1
-        tests.sort()
-        if cnt==0:
+        cases.sort()
+        if cnt == 0:
             raise FormatError('No testdata found.')
         else:
-            for i in tests:
+            for i in cases:
                 yield DefaultCase(partial(open, prefix + str(i) + '.in'),
                                   partial(open, prefix + str(i) + '.out'),
                                   parse_time_ns(cfg['time']),
@@ -301,26 +302,27 @@ def read_yaml_cases(config, open, zip_file):
                                       partial(open, case['judge']),
                                       path.splitext(case['judge'])[1][1:])
 
-def read_noconfig_cases(open, zip_file):
+def read_auto_cases(open, zip_file):
     cnt = 0
     files = zip_file.namelist()
     prefix = ''
-    tests = []
+    cases = []
+    re_input = re.compile(r'([a-zA-Z]*)([0-9]*)\.in')
     for i in files:
-        match = re.match(r'([a-zA-Z]*)([0-9]*)\.in' , i, re.M|re.I)
+        match = re_input.match(i)
         if match:
             prefix = (match.group(1))
-            tests.append(match.group(2))
+            cases.append(match.group(2))
             cnt = cnt + 1
-    tests.sort()
-    if cnt==0:
+    cases.sort()
+    if cnt == 0:
         raise FormatError('No testdata found.')
     else:
-        for i in tests:
+        for i in cases:
             yield DefaultCase(partial(open, prefix + str(i) + '.in'),
                               partial(open, prefix + str(i) + '.out'),
-                              parse_time_ns('1'),
-                              parse_memory_bytes('134217728'),
+                              parse_time_ns('1s'),
+                              parse_memory_bytes('128m'),
                               int(100/cnt))
 
 def read_cases(file):
@@ -344,4 +346,4 @@ def read_cases(file):
         return read_yaml_cases(config, open, zip_file)
     except FileNotFoundError:
         pass
-    return read_noconfig_cases(open, zip_file)
+    return read_auto_cases(open, zip_file)
