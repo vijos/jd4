@@ -4,7 +4,7 @@ from asyncio import gather, get_event_loop
 from functools import partial
 from io import BytesIO, TextIOWrapper
 from itertools import islice
-from os import link, mkfifo, path, listdir
+from os import link, mkfifo, path
 from ruamel import yaml
 from socket import socket, AF_UNIX, SOCK_STREAM, SOCK_NONBLOCK
 from threading import RLock
@@ -263,9 +263,9 @@ def read_yaml_cases(config, open, zip_file):
         pass
     if 'cases' not in cfg:
         if 'time' not in cfg:
-            cfg['time'] = 1
+            cfg['time'] = '1'
         if 'memory' not in cfg:
-            cfg['memory'] = 128*1024
+            cfg['memory'] = '134217728'
         cnt = 0
         files = zip_file.namelist()
         prefix = ''
@@ -277,8 +277,11 @@ def read_yaml_cases(config, open, zip_file):
                 tests.append(match.group(2))
                 cnt = cnt + 1
         tests.sort()
-        for i in tests:
-            yield CustomJudgeCase(partial(open, prefix + str(i) + '.in'),
+        if cnt==0:
+            raise FormatError('No testdata found.')
+        else:
+            for i in tests:
+                yield DefaultCase(partial(open, prefix + str(i) + '.in'),
                                   partial(open, prefix + str(i) + '.out'),
                                   parse_time_ns(cfg['time']),
                                   parse_memory_bytes(cfg['memory']),
@@ -297,6 +300,28 @@ def read_yaml_cases(config, open, zip_file):
                                       parse_memory_bytes(case['memory']),
                                       partial(open, case['judge']),
                                       path.splitext(case['judge'])[1][1:])
+
+def read_noconfig_cases(open, zip_file):
+    cnt = 0
+    files = zip_file.namelist()
+    prefix = ''
+    tests = []
+    for i in files:
+        match = re.match(r'([a-zA-Z]*)([0-9]*)\.in' , i, re.M|re.I)
+        if match:
+            prefix = (match.group(1))
+            tests.append(match.group(2))
+            cnt = cnt + 1
+    tests.sort()
+    if cnt==0:
+        raise FormatError('No testdata found.')
+    else:
+        for i in tests:
+            yield DefaultCase(partial(open, prefix + str(i) + '.in'),
+                              partial(open, prefix + str(i) + '.out'),
+                              parse_time_ns('1'),
+                              parse_memory_bytes('134217728'),
+                              int(100/cnt))
 
 def read_cases(file):
     zip_file = ZipFile(file)
@@ -319,4 +344,4 @@ def read_cases(file):
         return read_yaml_cases(config, open, zip_file)
     except FileNotFoundError:
         pass
-    raise FormatError('config file not found')
+    return read_noconfig_cases(open, zip_file)
