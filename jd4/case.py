@@ -274,9 +274,9 @@ def read_yaml_cases(config, open, zip_file):
         for i in files:
             match = re_input.match(i)
             if match:
-                prefix = (match.group(1))
+                prefix = match.group(1)
                 cases.append(match.group(2))
-                cnt = cnt + 1
+                cnt += 1
         cases.sort()
         if cnt == 0:
             raise FormatError('No testdata found.')
@@ -286,7 +286,7 @@ def read_yaml_cases(config, open, zip_file):
                                   partial(open, prefix + str(i) + '.out'),
                                   parse_time_ns(cfg['time']),
                                   parse_memory_bytes(cfg['memory']),
-                                  int(100/cnt))
+                                  int(100//cnt))
     else:
         for case in cfg['cases']:
             if 'judge' not in case:
@@ -311,9 +311,9 @@ def read_auto_cases(open, zip_file):
     for i in files:
         match = re_input.match(i)
         if match:
-            prefix = (match.group(1))
+            prefix = match.group(1)
             cases.append(match.group(2))
-            cnt = cnt + 1
+            cnt += 1
     cases.sort()
     if cnt == 0:
         raise FormatError('No testdata found.')
@@ -323,7 +323,7 @@ def read_auto_cases(open, zip_file):
                               partial(open, prefix + str(i) + '.out'),
                               parse_time_ns('1s'),
                               parse_memory_bytes('128m'),
-                              int(100/cnt))
+                              int(100//cnt))
 
 def read_cases(file):
     zip_file = ZipFile(file)
