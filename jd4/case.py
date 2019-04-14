@@ -266,13 +266,13 @@ def read_auto_cases(open, zip_file, time_limit='1s', memory_limit='128m'):
         match = re_input.match(i)
         if match:
             prefix = match.group(1)
-            cases.append(match.group(2))
+            cases.append(int(match.group(2)))
             cnt += 1
-    if cnt == 0:
-        raise FormatError('No testdata found.')
+    if not cnt:
+        raise FormatError('No test case found.')
     cases.sort()
     counter = 0
-    score = 100//cnt
+    score = 100 // cnt
     divider = cnt - 100%cnt
     for i in cases:
         counter += 1
