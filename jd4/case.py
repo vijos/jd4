@@ -25,7 +25,7 @@ MAX_STDERR_SIZE = 8192
 DEFAULT_TIME_NS = 1000000000
 DEFAULT_MEMORY_BYTES = 268435456
 PROCESS_LIMIT = 64
-re_input = re.compile(r'([a-zA-Z]*)([0-9]*)\.in')
+RE_INPUT_FILENAME = re.compile(r'([a-zA-Z]*)([0-9]*)\.in')
 
 class CaseBase:
     def __init__(self, time_limit_ns, memory_limit_bytes, process_limit, score):
@@ -258,15 +258,14 @@ def read_legacy_cases(config, open):
                           int(score_str))
 
 def read_auto_cases(open, zip_file, time_limit='1s', memory_limit='128m'):
-    files = zip_file.namelist()
     prefix = ''
     cases = []
-    for i in files:
-        match = re_input.match(i)
+    for filename in zip_file.namelist():
+        match = RE_INPUT_FILENAME.match(filename)
         if match:
             prefix = match.group(1)
             cases.append(int(match.group(2)))
-    if not len(cases):
+    if not cases:
         raise FormatError('No test case found.')
     cases.sort()
     score = 100 // len(cases)
@@ -276,18 +275,20 @@ def read_auto_cases(open, zip_file, time_limit='1s', memory_limit='128m'):
                           partial(open, prefix + str(case) + '.out'),
                           parse_time_ns(time_limit),
                           parse_memory_bytes(memory_limit),
-                          score if i <= divider else score+1)
+                          score if i < divider else score+1)
 
 def read_yaml_cases(config, open, zip_file):
-    cfg = yaml.safe_load(config)
-    if 'cases' not in cfg:
-        if 'time' not in cfg:
-            cfg['time'] = '1s'
-        if 'memory' not in cfg:
-            cfg['memory'] = '128m'
-        return read_auto_cases(open, zip_file, cfg['time'], cfg['memory'])
+    config = yaml.safe_load(config)
+    if 'cases' not in config:
+        if ('time' not in config) and ('memory' not in config):
+            raise FormatError('Invalid config file')
+        if 'time' not in config:
+            config['time'] = '1s'
+        if 'memory' not in config:
+            config['memory'] = '128m'
+        return read_auto_cases(open, zip_file, config['time'], config['memory'])
     else:
-        for case in cfg['cases']:
+        for case in config['cases']:
             if 'judge' not in case:
                 yield DefaultCase(partial(open, case['input']),
                                   partial(open, case['output']),
