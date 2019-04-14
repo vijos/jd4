@@ -271,12 +271,12 @@ def read_auto_cases(open, zip_file, time_limit='1s', memory_limit='128m', judge=
     score = 100 // len(cases)
     divider = len(cases) - 100 % len(cases)
     for i, case in enumerate(cases):
-        if judge:
+        if not judge:
             yield DefaultCase(partial(open, prefix + str(case) + '.in'),
                               partial(open, prefix + str(case) + '.out'),
                               parse_time_ns(time_limit),
                               parse_memory_bytes(memory_limit),
-                              score if i < divider else score+1)
+                              score if i < divider else score + 1)
         else:
             yield CustomJudgeCase(partial(open, prefix + str(case) + '.in'),
                                           parse_time_ns(time_limit),
@@ -287,15 +287,9 @@ def read_auto_cases(open, zip_file, time_limit='1s', memory_limit='128m', judge=
 def read_yaml_cases(config, open, zip_file):
     config = yaml.safe_load(config)
     if 'cases' not in config:
-        if ('time' not in config) and ('memory' not in config):
+        if ('time' not in config) or ('memory' not in config):
             raise FormatError('Invalid config file')
-        if 'time' not in config:
-            config['time'] = '1s'
-        if 'memory' not in config:
-            config['memory'] = '128m'
-        if 'judge' not in config:
-            config['judge'] = ''
-        return read_auto_cases(open, zip_file, config['time'], config['memory'], config['judge'])
+        return read_auto_cases(open, zip_file, config['time'], config['memory'], config.get('judge'))
     else:
         for case in config['cases']:
             if 'judge' not in case:
