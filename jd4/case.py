@@ -268,8 +268,13 @@ def read_auto_cases(open, zip_file, time_limit='1s', memory_limit='128m', judge=
     if not cases:
         raise FormatError('No test case found.')
     cases.sort()
-    score = 100 // len(cases)
-    divider = len(cases) - 100 % len(cases)
+    score = 100 // len(cases)                # The basic score of each case
+    divider = len(cases) - 100 % len(cases)  # Decides after which case there's an extra score
+    # e.g. 8 test cases:
+    # score = 100//8 = 12
+    # divider = 8 - 100 % 8 = 4
+    # which means test cases 0-3 will be 12/case
+    # 4-7 will be 13/case
     for i, case in enumerate(cases):
         if not judge:
             yield DefaultCase(partial(open, prefix + str(case) + '.in'),
