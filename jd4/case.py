@@ -271,18 +271,19 @@ def read_auto_cases(open, zip_file, time_limit='1s', memory_limit='128m'):
     if cnt == 0:
         raise FormatError('No testdata found.')
     cases.sort()
+    counter = 0
+    score = 100//cnt
+    divider = cnt - 100%cnt
     for i in cases:
+        counter += 1
         yield DefaultCase(partial(open, prefix + str(i) + '.in'),
                           partial(open, prefix + str(i) + '.out'),
                           parse_time_ns(time_limit),
                           parse_memory_bytes(memory_limit),
-                          int(100//cnt))
+                          score if counter <= divider else score+1)
 
 def read_yaml_cases(config, open, zip_file):
-    try:
-        cfg = yaml.safe_load(config)
-    except:
-        raise FormatError('Invalid config file')
+    cfg = yaml.safe_load(config)
     if 'cases' not in cfg:
         if 'time' not in cfg:
             cfg['time'] = '1s'
