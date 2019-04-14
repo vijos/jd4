@@ -257,7 +257,7 @@ def read_legacy_cases(config, open):
                           memory_bytes,
                           int(score_str))
 
-def read_auto_cases(open, zip_file, time_limit='1s', memory_limit='128m'):
+def read_auto_cases(open, zip_file, time_limit='1s', memory_limit='128m', judge=''):
     prefix = ''
     cases = []
     for filename in zip_file.namelist():
@@ -271,11 +271,18 @@ def read_auto_cases(open, zip_file, time_limit='1s', memory_limit='128m'):
     score = 100 // len(cases)
     divider = len(cases) - 100 % len(cases)
     for i, case in enumerate(cases):
-        yield DefaultCase(partial(open, prefix + str(case) + '.in'),
-                          partial(open, prefix + str(case) + '.out'),
-                          parse_time_ns(time_limit),
-                          parse_memory_bytes(memory_limit),
-                          score if i < divider else score+1)
+        if judge:
+            yield DefaultCase(partial(open, prefix + str(case) + '.in'),
+                              partial(open, prefix + str(case) + '.out'),
+                              parse_time_ns(time_limit),
+                              parse_memory_bytes(memory_limit),
+                              score if i < divider else score+1)
+        else:
+            yield CustomJudgeCase(partial(open, prefix + str(case) + '.in'),
+                                          parse_time_ns(time_limit),
+                                          parse_memory_bytes(memory_limit),
+                                          partial(open, judge),
+                                          path.splitext(judge)[1][1:])
 
 def read_yaml_cases(config, open, zip_file):
     config = yaml.safe_load(config)
@@ -286,7 +293,9 @@ def read_yaml_cases(config, open, zip_file):
             config['time'] = '1s'
         if 'memory' not in config:
             config['memory'] = '128m'
-        return read_auto_cases(open, zip_file, config['time'], config['memory'])
+        if 'judge' not in config:
+            config['judge'] = ''
+        return read_auto_cases(open, zip_file, config['time'], config['memory'], config['judge'])
     else:
         for case in config['cases']:
             if 'judge' not in case:
