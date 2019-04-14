@@ -25,7 +25,7 @@ MAX_STDERR_SIZE = 8192
 DEFAULT_TIME_NS = 1000000000
 DEFAULT_MEMORY_BYTES = 268435456
 PROCESS_LIMIT = 64
-RE_INPUT_FILENAME = re.compile(r'([a-zA-Z]*)([0-9]+)\.out')
+RE_INPUT_FILENAME = re.compile(r'([a-zA-Z]*)([0-9]+)\.in')
 
 class CaseBase:
     def __init__(self, time_limit_ns, memory_limit_bytes, process_limit, score):
