@@ -25,6 +25,7 @@ MAX_STDERR_SIZE = 8192
 DEFAULT_TIME_NS = 1000000000
 DEFAULT_MEMORY_BYTES = 268435456
 PROCESS_LIMIT = 64
+re_input = re.compile(r'([a-zA-Z]*)([0-9]*)\.in')
 
 class CaseBase:
     def __init__(self, time_limit_ns, memory_limit_bytes, process_limit, score):
@@ -257,30 +258,25 @@ def read_legacy_cases(config, open):
                           int(score_str))
 
 def read_auto_cases(open, zip_file, time_limit='1s', memory_limit='128m'):
-    cnt = 0
     files = zip_file.namelist()
     prefix = ''
     cases = []
-    re_input = re.compile(r'([a-zA-Z]*)([0-9]*)\.in')
     for i in files:
         match = re_input.match(i)
         if match:
             prefix = match.group(1)
             cases.append(int(match.group(2)))
-            cnt += 1
-    if not cnt:
+    if not len(cases):
         raise FormatError('No test case found.')
     cases.sort()
-    counter = 0
-    score = 100 // cnt
-    divider = cnt - 100%cnt
-    for i in cases:
-        counter += 1
-        yield DefaultCase(partial(open, prefix + str(i) + '.in'),
-                          partial(open, prefix + str(i) + '.out'),
+    score = 100 // len(cases)
+    divider = len(cases) - 100 % len(cases)
+    for i, case in enumerate(cases):
+        yield DefaultCase(partial(open, prefix + str(case) + '.in'),
+                          partial(open, prefix + str(case) + '.out'),
                           parse_time_ns(time_limit),
                           parse_memory_bytes(memory_limit),
-                          score if counter <= divider else score+1)
+                          score if i <= divider else score+1)
 
 def read_yaml_cases(config, open, zip_file):
     cfg = yaml.safe_load(config)
