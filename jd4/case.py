@@ -284,10 +284,10 @@ def read_auto_cases(open, zip_file, time_limit='1s', memory_limit='128m', judge=
                               score if i < divider else score + 1)
         else:
             yield CustomJudgeCase(partial(open, prefix + str(case) + '.in'),
-                                          parse_time_ns(time_limit),
-                                          parse_memory_bytes(memory_limit),
-                                          partial(open, judge),
-                                          path.splitext(judge)[1][1:])
+                                  parse_time_ns(time_limit),
+                                  parse_memory_bytes(memory_limit),
+                                  partial(open, judge),
+                                  path.splitext(judge)[1][1:])
 
 def read_yaml_cases(config, open, zip_file):
     config = yaml.safe_load(config)
