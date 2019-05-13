@@ -25,7 +25,7 @@ MAX_STDERR_SIZE = 8192
 DEFAULT_TIME_NS = 1000000000
 DEFAULT_MEMORY_BYTES = 268435456
 PROCESS_LIMIT = 64
-RE_INPUT_FILENAME = re.compile(r'([a-zA-Z]*)([0-9]+)\.in')
+RE_INPUT_FILENAME = re.compile(r'([a-z]*)([0-9]+)\.in', re.I)
 
 class CaseBase:
     def __init__(self, time_limit_ns, memory_limit_bytes, process_limit, score):
@@ -258,32 +258,25 @@ def read_legacy_cases(config, open):
                           int(score_str))
 
 def read_auto_cases(open, zip_file, time_limit='1s', memory_limit='128m', judge=''):
-    prefix = ''
     cases = []
     for filename in zip_file.namelist():
-        match = RE_INPUT_FILENAME.match(filename)
+        match = RE_INPUT_FILENAME.fullmatch(filename)
         if match:
-            prefix = match.group(1)
-            cases.append(int(match.group(2)))
+            cases.append({'prefix':match.group(1), 'id':int(match.group(2))})
     if not cases:
         raise FormatError('No test case found.')
-    cases.sort()
-    score = 100 // len(cases)                # The basic score of each case
-    divider = len(cases) - 100 % len(cases)  # Decides after which case there's an extra score
-    # e.g. 8 test cases:
-    # score = 100//8 = 12
-    # divider = 8 - 100 % 8 = 4
-    # which means test cases 0-3 will be 12/case
-    # 4-7 will be 13/case
+    cases = sorted(cases, key=lambda case: case[1])
+    score = 100 // len(cases)
+    divider = len(cases) - 100 % len(cases)
     for i, case in enumerate(cases):
         if not judge:
-            yield DefaultCase(partial(open, prefix + str(case) + '.in'),
-                              partial(open, prefix + str(case) + '.out'),
+            yield DefaultCase(partial(open, str(case['prefix']) + str(case['id']) + '.in'),
+                              partial(open, str(case['prefix']) + str(case['id']) + '.out'),
                               parse_time_ns(time_limit),
                               parse_memory_bytes(memory_limit),
                               score if i < divider else score + 1)
         else:
-            yield CustomJudgeCase(partial(open, prefix + str(case) + '.in'),
+            yield CustomJudgeCase(partial(open, str(case['prefix']) + str(case['id']) + '.in'),
                                   parse_time_ns(time_limit),
                                   parse_memory_bytes(memory_limit),
                                   partial(open, judge),
