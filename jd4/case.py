@@ -270,11 +270,18 @@ def read_auto_cases(open, zip_file, time_limit='1s', memory_limit='128m', judge=
     divider = len(cases) - 100 % len(cases)
     for i, case in enumerate(cases):
         if not judge:
-            yield DefaultCase(partial(open, str(case['prefix']) + str(case['id']) + '.in'),
-                              partial(open, str(case['prefix']) + str(case['id']) + '.out'),
-                              parse_time_ns(time_limit),
-                              parse_memory_bytes(memory_limit),
-                              score if i < divider else score + 1)
+            try:
+                yield DefaultCase(partial(open, str(case['prefix']) + str(case['id']) + '.in'),
+                                  partial(open, str(case['prefix']) + str(case['id']) + '.out'),
+                                  parse_time_ns(time_limit),
+                                  parse_memory_bytes(memory_limit),
+                                  score if i < divider else score + 1)
+            except FileNotFoundError:
+                yield DefaultCase(partial(open, str(case['prefix']) + str(case['id']) + '.in'),
+                                  partial(open, str(case['prefix']) + str(case['id']) + '.ans'),
+                                  parse_time_ns(time_limit),
+                                  parse_memory_bytes(memory_limit),
+                                  score if i < divider else score + 1)
         else:
             yield CustomJudgeCase(partial(open, str(case['prefix']) + str(case['id']) + '.in'),
                                   parse_time_ns(time_limit),
