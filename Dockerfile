@@ -1,4 +1,4 @@
-FROM debian:stretch
+FROM debian:buster
 COPY . /tmp/jd4
 RUN apt-get update && \
     apt-get install -y \
