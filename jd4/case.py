@@ -220,7 +220,7 @@ class CustomJudgeCase:
 
     def do_input(self, input_file):
         try:
-            with self.open_input() as src, open(input_file, 'wb') as dst:
+            with open(input_file, 'wb') as dst, self.open_input() as src:
                 dos2unix(src, dst)
         except BrokenPipeError:
             pass
