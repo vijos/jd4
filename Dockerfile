@@ -10,7 +10,7 @@ RUN apt-get update && \
             fp-compiler \
             openjdk-11-jdk-headless \
             python \
-            php7.2-cli \
+            php7.3-cli \
             rustc \
             ghc \
             libjavascriptcoregtk-4.0-bin \
