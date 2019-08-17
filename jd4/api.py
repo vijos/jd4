@@ -1,6 +1,6 @@
 import json
 from aiohttp import ClientSession, CookieJar
-from asyncio import get_event_loop
+from asyncio import Queue, gather, get_event_loop, wait, FIRST_COMPLETED
 from appdirs import user_config_dir
 from os import path
 from urllib.parse import urljoin
@@ -57,10 +57,21 @@ class VJ4Session(ClientSession):
     async def judge_consume(self, handler_type):
         async with self.ws_connect(self.full_url('judge/consume-conn/websocket')) as ws:
             logger.info('Connected')
-            async for msg in ws:
-                request = json.loads(msg.data)
-                await handler_type(self, request, ws).handle()
-            logger.warning('Connection lost with code %d', ws.close_code)
+            queue = Queue()
+            async def fetch():
+                async for msg in ws:
+                    request = json.loads(msg.data)
+                    await queue.put(request)
+                logger.warning('Connection lost with code %d', ws.close_code)
+            async def consume():
+                while True:
+                    request = await queue.get()
+                    await handler_type(self, request, ws).handle()
+            done, pending = await wait([fetch(), consume()],
+                                       return_when=FIRST_COMPLETED)
+            for task in pending:
+                task.cancel()
+            await gather(*done)
 
     async def judge_noop(self):
         await self.get_json('judge/noop')
