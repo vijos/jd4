@@ -67,7 +67,7 @@ class VJ4Session(ClientSession):
                     raise
                 except Exception as e:
                     logger.exception(e)
-                    ws.close()
+                    await ws.close()
             worker_task = get_event_loop().create_task(worker())
             try:
                 while True:
