@@ -71,14 +71,15 @@ class VJ4Session(ClientSession):
             worker_task = get_event_loop().create_task(worker())
             try:
                 while True:
-                    await queue.put(await ws.receive_json())
+                    queue.put_nowait(await ws.receive_json())
             except TypeError:
                 pass
             logger.warning('Connection lost with code %d', ws.close_code)
-            if worker_task.done():
+            worker_task.cancel()
+            try:
                 await worker_task
-            else:
-                worker_task.cancel()
+            except CancelledError:
+                pass
 
     async def judge_noop(self):
         await self.get_json('judge/noop')
