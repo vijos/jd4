@@ -74,7 +74,7 @@ class VJ4Session(ClientSession):
                     queue.put_nowait(await ws.receive_json())
             except TypeError:
                 pass
-            logger.warning('Connection lost with code %d', ws.close_code)
+            logger.warning('Connection lost with code %s', ws.close_code)
             worker_task.cancel()
             try:
                 await worker_task
