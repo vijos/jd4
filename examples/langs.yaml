@@ -22,10 +22,10 @@ pas:
 java:
     type: compiler
     compiler_file: /usr/bin/javac
-    compiler_args: javac -d /out -encoding utf8 /in/Main.java
+    compiler_args: javac -d /out -encoding UTF-8 /in/Main.java
     code_file: Main.java
     execute_file: /usr/bin/java
-    execute_args: java Main
+    execute_args: java -Dfile.encoding=UTF-8 Main
 py:
     type: compiler
     compiler_file: /usr/bin/python

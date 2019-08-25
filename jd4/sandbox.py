@@ -54,8 +54,7 @@ class Sandbox:
         return await self.call(SANDBOX_BACKDOOR)
 
 def _handle_backdoor():
-    return spawnve(P_WAIT, '/bin/bash', ['bunny'],
-                   {'PATH': '/usr/bin:/bin', 'HOME': '/'})
+    return spawnve(P_WAIT, '/bin/bash', ['bunny'], SPAWN_ENV)
 
 def _handle_reset_child():
     remove_under('/tmp')
