@@ -65,7 +65,7 @@ class CaseBase:
                                 self.memory_limit_bytes,
                                 self.process_limit))
                 execute_status = await execute_task
-                _, correct, stderr, (time_usage_ns, memory_usage_bytes) = \
+                _, message, stderr, (time_usage_ns, memory_usage_bytes) = \
                     await others_task
             if memory_usage_bytes >= self.memory_limit_bytes:
                 status = STATUS_MEMORY_LIMIT_EXCEEDED
@@ -76,13 +76,13 @@ class CaseBase:
             elif execute_status:
                 status = STATUS_RUNTIME_ERROR
                 score = 0
-            elif not correct:
+            elif message:
                 status = STATUS_WRONG_ANSWER
                 score = 0
             else:
                 status = STATUS_ACCEPTED
                 score = self.score
-            return status, score, time_usage_ns, memory_usage_bytes, stderr
+            return status, score, time_usage_ns, memory_usage_bytes, stderr, message
         finally:
             put_sandbox(sandbox)
 
@@ -215,7 +215,7 @@ class CustomJudgeCase:
                 except SystemError:
                     status = STATUS_SYSTEM_ERROR
                     score = 0
-            return status, score, user_time_usage_ns, user_memory_usage_bytes, user_stderr
+            return status, score, user_time_usage_ns, user_memory_usage_bytes, user_stderr, judge_stderr.decode(encoding='utf-8', errors='replace')
         finally:
             put_sandbox(user_sandbox, judge_sandbox)
 
