@@ -55,8 +55,8 @@ class JudgeHandler:
             raise
         except Exception as e:
             logger.exception(e)
-            self.next(judge_text=repr(e))
-            self.end(status=STATUS_SYSTEM_ERROR, score=0, time_ms=0, memory_kb=0)
+            await self.next(judge_text=repr(e))
+            await self.end(status=STATUS_SYSTEM_ERROR, score=0, time_ms=0, memory_kb=0)
 
     async def update_problem_data(self):
         domain_id = self.request.pop('domain_id')
@@ -82,9 +82,9 @@ class JudgeHandler:
             await self.judge(cases_file, package)
 
     async def build(self):
-        self.next(status=STATUS_COMPILING)
+        await self.next(status=STATUS_COMPILING)
         package, message, _, _ = await shield(build(self.lang, self.code.encode()))
-        self.next(compiler_text=message)
+        await self.next(compiler_text=message)
         if not package:
             logger.debug('Compile error: %s', message)
             raise CompileError(message)
@@ -92,7 +92,7 @@ class JudgeHandler:
 
     async def judge(self, cases_file, package):
         loop = get_event_loop()
-        self.next(status=STATUS_JUDGING, progress=0)
+        await self.next(status=STATUS_JUDGING, progress=0)
         cases = list(read_cases(cases_file))
         total_status = STATUS_ACCEPTED
         total_score = 0
@@ -107,28 +107,28 @@ class JudgeHandler:
                 judge_text = stderr.decode(encoding='utf-8', errors='replace')
             else:
                 judge_text = ''
-            self.next(status=STATUS_JUDGING,
-                      case={'status': status,
-                            'score': score,
-                            'time_ms': time_usage_ns // 1000000,
-                            'memory_kb': memory_usage_bytes // 1024,
-                            'judge_text': judge_text,
-                            'message': message},
-                      progress=(index + 1) * 100 // len(cases))
+            await self.next(status=STATUS_JUDGING,
+                            case={'status': status,
+                                  'score': score,
+                                  'time_ms': time_usage_ns // 1000000,
+                                  'memory_kb': memory_usage_bytes // 1024,
+                                  'judge_text': judge_text,
+                                  'message': message},
+                            progress=(index + 1) * 100 // len(cases))
             total_status = max(total_status, status)
             total_score += score
             total_time_usage_ns += time_usage_ns
             total_memory_usage_bytes = max(total_memory_usage_bytes, memory_usage_bytes)
-        self.end(status=total_status,
-                 score=total_score,
-                 time_ms=total_time_usage_ns // 1000000,
-                 memory_kb=total_memory_usage_bytes // 1024)
+        await self.end(status=total_status,
+                       score=total_score,
+                       time_ms=total_time_usage_ns // 1000000,
+                       memory_kb=total_memory_usage_bytes // 1024)
 
-    def next(self, **kwargs):
-        self.ws.send_json({'key': 'next', 'tag': self.tag, **kwargs})
+    async def next(self, **kwargs):
+        await self.ws.send_json({'key': 'next', 'tag': self.tag, **kwargs})
 
-    def end(self, **kwargs):
-        self.ws.send_json({'key': 'end', 'tag': self.tag, **kwargs})
+    async def end(self, **kwargs):
+        await self.ws.send_json({'key': 'end', 'tag': self.tag, **kwargs})
 
 async def update_problem_data(session):
     logger.info('Update problem data')
