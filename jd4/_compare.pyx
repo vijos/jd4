@@ -46,11 +46,13 @@ def compare_stream(fa, fb):
         if (a == 13 or a == 10 or a == 32 or a == 9):
             cache_a = ""
         else:
-            cache_a = cache_a + chr(a)
+            if (a != -1):
+                cache_a = cache_a + chr(a)
         if (b == 13 or b == 10 or b == 32 or a == 9):
             cache_b = ""
         else:
-            cache_b = cache_b + chr(b)
+            if (b != -1):
+                cache_b = cache_b + chr(b)
         while a != b:
             if (a == 13 or
                 (both_spaced and (a == 32 or a == 9)) or
@@ -62,11 +64,11 @@ def compare_stream(fa, fb):
                 b = rb.read()
             else:
                 a = ra.read()
-                while (a != 13 and a != 10 and a != 32 and a != 9):
+                while (a != 13 and a != 10 and a != 32 and a != 9 and a != -1):
                     cache_a = cache_a + chr(a)
                     a=ra.read()
                 b = rb.read()
-                while (b != 13 and b != 10 and a != 32 and b != 9):
+                while (b != 13 and b != 10 and a != 32 and b != 9 and b != -1):
                     cache_b = cache_b + chr(b)
                     b = rb.read()
                 return "Read " + cache_b + ", expect " + cache_a
