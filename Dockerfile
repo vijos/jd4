@@ -1,4 +1,4 @@
-FROM debian:stretch
+FROM debian:buster
 COPY . /tmp/jd4
 RUN apt-get update && \
     apt-get install -y \
@@ -8,9 +8,9 @@ RUN apt-get update && \
             python3-dev \
             g++ \
             fp-compiler \
-            openjdk-8-jdk-headless \
+            openjdk-11-jdk-headless \
             python \
-            php7.0-cli \
+            php7.3-cli \
             rustc \
             haskell-platform \
             libjavascriptcoregtk-4.0-bin \
