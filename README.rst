@@ -1,11 +1,8 @@
 Judge Daemon
 ============
 
-.. image:: https://travis-ci.org/vijos/jd4.svg?branch=master
-    :target: https://travis-ci.org/vijos/jd4
-
-.. image:: https://images.microbadger.com/badges/image/vijos/jd4.svg
-    :target: https://microbadger.com/images/vijos/jd4
+.. image:: https://github.com/vijos/jd4/actions/workflows/test.yml/badge.svg?branch=master
+    :target: https://github.com/vijos/jd4/actions
 
 .. contents::
 
