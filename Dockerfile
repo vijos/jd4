@@ -12,7 +12,7 @@ RUN apt-get update && \
             python \
             php7.0-cli \
             rustc \
-            ghc \
+            haskell-platform \
             libjavascriptcoregtk-4.0-bin \
             golang \
             ruby \
