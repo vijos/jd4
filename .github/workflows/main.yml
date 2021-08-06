@@ -1,6 +1,8 @@
 name: Main
 
-on: [push, pull_request]
+on: 
+  push: ~
+  pull_request: ~
 
 jobs:
   test:
@@ -50,6 +52,7 @@ jobs:
 
       - name: Integration test
         run: |
+          docker load --input /tmp/jd4.tar
           docker run --privileged \
             -v $(readlink -f examples/config.yaml):/root/.config/jd4/config.yaml \
             vijos/jd4 /bin/bash -c "source /venv/bin/activate && python3 -m unittest -v jd4.integration_test"
