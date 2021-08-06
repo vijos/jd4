@@ -102,3 +102,4 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           allowUpdates: true
           tag: build-${{ needs.test.outputs.sha_short }}
+          commit: ${{ github.sha }}
