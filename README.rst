@@ -1,7 +1,7 @@
 Judge Daemon
 ============
 
-.. image:: https://github.com/vijos/jd4/actions/workflows/test.yml/badge.svg?branch=master
+.. image:: https://github.com/vijos/jd4/actions/workflows/main.yml/badge.svg?branch=master
     :target: https://github.com/vijos/jd4/actions
 
 .. contents::
