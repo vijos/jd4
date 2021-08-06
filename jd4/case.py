@@ -1,5 +1,4 @@
 import csv
-import re
 from asyncio import gather, get_event_loop
 from functools import partial
 from io import BytesIO, TextIOWrapper
@@ -7,8 +6,7 @@ from itertools import islice
 from os import link, mkfifo, path
 from ruamel import yaml
 from socket import socket, AF_UNIX, SOCK_STREAM, SOCK_NONBLOCK
-from threading import RLock
-from zipfile import ZipFile, BadZipFile
+from zipfile import ZipFile
 
 from jd4._compare import compare_stream
 from jd4.cgroup import wait_cgroup
