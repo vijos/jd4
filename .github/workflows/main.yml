@@ -90,3 +90,12 @@ jobs:
         with:
           push: true
           tags: vijos/jd4:latest,vijos/jd4:${{ needs.test.outputs.sha_short }}
+      
+      - name: Release to GitHub
+        uses: ncipollo/release-action@v1
+        with:
+          name: vijos/jd4:${{ needs.test.outputs.sha_short }}
+          artifacts: /tmp/jd4.tar
+          token: ${{ secrets.GITHUB_TOKEN }}
+          allowUpdates: true
+          tag: build-${{ needs.test.outputs.sha_short }}
