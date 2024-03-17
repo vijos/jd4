@@ -80,7 +80,7 @@ echo $a + $b . "\\n";
 """)
 
     def test_py(self):
-        self.do_lang('py', b'print sum(map(int, raw_input().split()))')
+        self.do_lang('py', b'print(sum(map(int, input().split())))')
 
     def test_py3(self):
         self.do_lang('py3', b'print(sum(map(int, input().split())))')
