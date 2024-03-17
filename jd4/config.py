@@ -11,7 +11,7 @@ _CONFIG_FILE = path.join(_CONFIG_DIR, 'config.yaml')
 def _load_config():
     try:
         with open(_CONFIG_FILE, encoding='utf-8') as file:
-            return yaml.load(file, Loader=yaml.RoundTripLoader)
+            return yaml.YAML().load(file)
     except FileNotFoundError:
         logger.error('Config file %s not found.', _CONFIG_FILE)
         exit(1)
@@ -21,7 +21,7 @@ config = _load_config()
 async def save_config():
     def do_save_config():
         with open(_CONFIG_FILE, 'w', encoding='utf-8') as file:
-            yaml.dump(config, file, Dumper=yaml.RoundTripDumper)
+            yaml.YAML().dump(config, file)
 
     await get_event_loop().run_in_executor(None, do_save_config)
 

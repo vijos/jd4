@@ -16,19 +16,19 @@ jobs:
         id: vars
         run: echo "::set-output name=sha_short::$(git rev-parse --short HEAD)"
 
-      - name: Setup Python 3.5
+      - name: Setup Python 3.8
         uses: actions/setup-python@v2
         with:
-          python-version: 3.5
+          python-version: 3.8
 
       - name: Setup pip cache
         uses: actions/cache@v2
         with:
           path: ~/.cache/pip
-          key: ${{ runner.os }}-py3.5-pip--${{ hashFiles('requirements.txt') }}
+          key: ${{ runner.os }}-py3.8-pip--${{ hashFiles('requirements.txt') }}
           restore-keys: |
-            ${{ runner.os }}-py3.5-pip-
-            ${{ runner.os }}-py3.5-
+            ${{ runner.os }}-py3.8-pip-
+            ${{ runner.os }}-py3.8-
 
       - name: Prepare environment
         run: |
