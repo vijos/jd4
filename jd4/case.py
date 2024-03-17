@@ -255,7 +255,7 @@ def read_legacy_cases(config, open):
                           int(score_str))
 
 def read_yaml_cases(config, open):
-    for case in yaml.safe_load(config)['cases']:
+    for case in yaml.YAML(typ='safe').load(config)['cases']:
         if 'judge' not in case:
             yield DefaultCase(partial(open, case['input']),
                               partial(open, case['output']),

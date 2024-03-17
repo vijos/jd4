@@ -155,7 +155,7 @@ async def build(lang, code):
 def _init():
     try:
         with open(_LANGS_FILE) as file:
-            langs_config = yaml.load(file, Loader=yaml.RoundTripLoader)
+            langs_config = yaml.YAML().load(file)
     except FileNotFoundError:
         logger.error('Language file %s not found.', _LANGS_FILE)
         exit(1)
