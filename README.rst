@@ -41,7 +41,7 @@ Development
 Prerequisites:
 
 - Linux 4.4+
-- Python 3.5+
+- Python 3.8+
 
 Use the following command to install Python requirements::
 
@@ -113,7 +113,7 @@ throughput increment by using Cython (like 3MB/s to 200MB/s).
 Copyright and License
 ---------------------
 
-Copyright (c) 2017 Vijos Dev Team.  All rights reserved.
+Copyright (c) 2024 Vijos Dev Team.  All rights reserved.
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as
