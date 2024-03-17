@@ -9,6 +9,7 @@ from jd4.cgroup import try_init_cgroup
 from jd4.compile import build
 from jd4.config import config, save_config
 from jd4.log import logger
+from jd4.pool import init as init_pool
 from jd4.status import STATUS_ACCEPTED, STATUS_COMPILE_ERROR, \
     STATUS_SYSTEM_ERROR, STATUS_JUDGING, STATUS_COMPILING
 
@@ -149,8 +150,6 @@ async def do_noop(session):
         await session.judge_noop()
 
 async def daemon():
-    try_init_cgroup()
-
     async with VJ4Session(config['server_url']) as session:
         while True:
             try:
@@ -166,5 +165,10 @@ async def daemon():
             logger.info('Retrying after %d seconds', RETRY_DELAY_SEC)
             await sleep(RETRY_DELAY_SEC)
 
-if __name__ == '__main__':
+def main():
+    try_init_cgroup()
+    init_pool()
     get_event_loop().run_until_complete(daemon())
+
+if __name__ == '__main__':
+    main()

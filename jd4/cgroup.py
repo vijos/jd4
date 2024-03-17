@@ -1,6 +1,6 @@
 from asyncio import get_event_loop, shield, sleep, wait_for, TimeoutError
 from itertools import chain
-from os import access, cpu_count, geteuid, kill, makedirs, path, rmdir, W_OK
+from os import access, cpu_count, geteuid, getpid, kill, makedirs, path, rmdir, W_OK
 from signal import SIGKILL
 from socket import socket, AF_UNIX, SOCK_STREAM, SOL_SOCKET, SO_PEERCRED
 from subprocess import call
@@ -10,58 +10,63 @@ from tempfile import mkdtemp
 from jd4.log import logger
 from jd4.util import read_text_file, write_text_file
 
-CPUACCT_CGROUP_ROOT = '/sys/fs/cgroup/cpuacct/jd4'
-MEMORY_CGROUP_ROOT = '/sys/fs/cgroup/memory/jd4'
-PIDS_CGROUP_ROOT = '/sys/fs/cgroup/pids/jd4'
+CGROUP2_ROOT = '/sys/fs/cgroup/jd4'
+CGROUP2_DAEMON_ROOT = path.join(CGROUP2_ROOT, 'daemon')
 WAIT_JITTER_NS = 5000000
 
 def try_init_cgroup():
     euid = geteuid()
-    cgroups_to_init = list()
-    if not (path.isdir(CPUACCT_CGROUP_ROOT) and access(CPUACCT_CGROUP_ROOT, W_OK)):
-        cgroups_to_init.append(CPUACCT_CGROUP_ROOT)
-    if not (path.isdir(MEMORY_CGROUP_ROOT) and access(MEMORY_CGROUP_ROOT, W_OK)):
-        cgroups_to_init.append(MEMORY_CGROUP_ROOT)
-    if not (path.isdir(PIDS_CGROUP_ROOT) and access(PIDS_CGROUP_ROOT, W_OK)):
-        cgroups_to_init.append(PIDS_CGROUP_ROOT)
-    if cgroups_to_init:
+    if not (path.isdir(CGROUP2_ROOT) and access(CGROUP2_ROOT, W_OK)):
+        cgroup2_subtree_control = path.join(CGROUP2_ROOT, 'cgroup.subtree_control')
         if euid == 0:
-            logger.info('Initializing cgroup: %s', ', '.join(cgroups_to_init))
-            for cgroup_to_init in cgroups_to_init:
-                makedirs(cgroup_to_init, exist_ok=True)
+            logger.info('Initializing cgroup: %s', CGROUP2_ROOT)
+            write_text_file('/sys/fs/cgroup/cgroup.subtree_control', '+cpu +memory +pids')
+            makedirs(CGROUP2_ROOT, exist_ok=True)
+            write_text_file(cgroup2_subtree_control, '+cpu +memory +pids')
+            makedirs(CGROUP2_DAEMON_ROOT, exist_ok=True)
         elif __stdin__.isatty():
-            logger.info('Initializing cgroup: %s', ', '.join(cgroups_to_init))
-            call(['sudo', 'sh', '-c', 'mkdir -p "{1}" && chown -R "{0}" "{1}"'.format(
-                euid, '" "'.join(cgroups_to_init))])
+            logger.info('Initializing cgroup: %s', CGROUP2_ROOT)
+            call(['sudo', 'sh', '-c',
+                  '''echo "+cpu +memory +pids" > "/sys/fs/cgroup/cgroup.subtree_control" &&
+                     mkdir -p "{1}" &&
+                     chown -R "{0}" "{1}" &&
+                     echo "+cpu +memory +pids" > "{2}" &&
+                     mkdir -p "{3}" &&
+                     chown -R "{0}" "{3}"'''.format(
+                euid, CGROUP2_ROOT, cgroup2_subtree_control, CGROUP2_DAEMON_ROOT)])
         else:
             logger.error('Cgroup not initialized')
 
+    # Put myself into the cgroup that I can write.
+    pid = getpid()
+    cgroup2_daemon_procs = path.join(CGROUP2_DAEMON_ROOT, 'cgroup.procs')
+    if euid == 0:
+        logger.info('Entering cgroup: %s', CGROUP2_DAEMON_ROOT)
+        write_text_file(cgroup2_daemon_procs, str(pid))
+    elif __stdin__.isatty():
+        logger.info('Entering cgroup: %s', CGROUP2_DAEMON_ROOT)
+        call(['sudo', 'sh', '-c', 'echo "{0}" > "{1}"'.format(pid, cgroup2_daemon_procs)])
+    else:
+        logger.error('Cgroup not entered')
+
 class CGroup:
     def __init__(self):
-        self.cpuacct_cgroup_dir = mkdtemp(prefix='', dir=CPUACCT_CGROUP_ROOT)
-        self.memory_cgroup_dir = mkdtemp(prefix='', dir=MEMORY_CGROUP_ROOT)
-        self.pids_cgroup_dir = mkdtemp(prefix='', dir=PIDS_CGROUP_ROOT)
+        self.cgroup2_dir = mkdtemp(prefix='', dir=CGROUP2_ROOT)
 
     def close(self):
-        rmdir(self.cpuacct_cgroup_dir)
-        rmdir(self.memory_cgroup_dir)
-        rmdir(self.pids_cgroup_dir)
+        rmdir(self.cgroup2_dir)
 
     async def accept(self, sock):
         loop = get_event_loop()
         accept_sock, _ = await loop.sock_accept(sock)
         pid = accept_sock.getsockopt(SOL_SOCKET, SO_PEERCRED)
-        write_text_file(path.join(self.cpuacct_cgroup_dir, 'tasks'), str(pid))
-        write_text_file(path.join(self.memory_cgroup_dir, 'tasks'), str(pid))
-        write_text_file(path.join(self.pids_cgroup_dir, 'tasks'), str(pid))
+        write_text_file(path.join(self.cgroup2_dir, 'cgroup.procs'), str(pid))
         accept_sock.close()
 
     @property
     def procs(self):
-        return set(chain(
-            map(int, read_text_file(path.join(self.cpuacct_cgroup_dir, 'cgroup.procs')).splitlines()),
-            map(int, read_text_file(path.join(self.memory_cgroup_dir, 'cgroup.procs')).splitlines()),
-            map(int, read_text_file(path.join(self.pids_cgroup_dir, 'cgroup.procs')).splitlines())))
+        return set(map(int,
+                       read_text_file(path.join(self.cgroup2_dir, 'cgroup.procs')).splitlines()))
 
     def kill(self):
         procs = self.procs
@@ -77,27 +82,28 @@ class CGroup:
 
     @property
     def cpu_usage_ns(self):
-        return int(read_text_file(path.join(self.cpuacct_cgroup_dir, 'cpuacct.usage')))
+        return 1000 * int(read_text_file(path.join(self.cgroup2_dir, 'cpu.stat'))
+                          .splitlines()[0].split()[1])
 
     @property
     def memory_limit_bytes(self):
-        return int(read_text_file(path.join(self.memory_cgroup_dir, 'memory.limit_in_bytes')))
+        return int(read_text_file(path.join(self.cgroup2_dir, 'memory.max')))
 
     @memory_limit_bytes.setter
     def memory_limit_bytes(self, value):
-        write_text_file(path.join(self.memory_cgroup_dir, 'memory.limit_in_bytes'), str(value))
+        write_text_file(path.join(self.cgroup2_dir, 'memory.max'), str(value))
 
     @property
     def memory_usage_bytes(self):
-        return int(read_text_file(path.join(self.memory_cgroup_dir, 'memory.max_usage_in_bytes')))
+        return int(read_text_file(path.join(self.cgroup2_dir, 'memory.peak')))
 
     @property
     def pids_max(self):
-        return int(read_text_file(path.join(self.pids_cgroup_dir, 'pids.max')))
+        return int(read_text_file(path.join(self.cgroup2_dir, 'pids.max')))
 
     @pids_max.setter
     def pids_max(self, value):
-        write_text_file(path.join(self.pids_cgroup_dir, 'pids.max'), str(value))
+        write_text_file(path.join(self.cgroup2_dir, 'pids.max'), str(value))
 
 def enter_cgroup(socket_path):
     with socket(AF_UNIX, SOCK_STREAM) as sock:
@@ -131,6 +137,8 @@ async def wait_cgroup(sock, execute_task, cpu_limit_ns, idle_limit_ns,
                 return cgroup.cpu_usage_ns, cgroup.memory_usage_bytes
             except TimeoutError:
                 pass
+    except Exception as e:
+        logger.error(e)
     finally:
         while cgroup.kill():
             await sleep(.001)

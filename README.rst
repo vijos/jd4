@@ -12,7 +12,7 @@ Introduction
 jd4 is a judging daemon for programming contests like OI and ACM. It is called
 jd4 because we had jd, jd2, jd3 before. Unlike previous versions that use
 Windows sandboxing techniques, jd4 uses newer sandboxing facilities that
-appear in Linux 4.4+. jd4 also multiplexes most I/O on an event loop so that
+appear in Linux 4.5+. jd4 also multiplexes most I/O on an event loop so that
 only two extra threads are used during a judge - one for input, and one for
 output, thus allowing blocking custom judge implementations.
 
@@ -21,7 +21,7 @@ Usage
 
 Prerequisites:
 
-- Linux 4.4+
+- Linux 4.5+
 - Docker
 
 Put config.yaml in the configuration directory, usually in
@@ -40,7 +40,7 @@ Development
 
 Prerequisites:
 
-- Linux 4.4+
+- Linux 4.5+
 - Python 3.8+
 
 Use the following command to install Python requirements::
