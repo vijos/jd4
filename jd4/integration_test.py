@@ -90,7 +90,7 @@ echo $a + $b . "\\n";
     let mut line = String::new();
     std::io::stdin().read_line(&mut line).unwrap();
     let numbers: Vec<i32> =
-        line.trim_right().split(' ').map(|s| s.parse().unwrap()).collect();
+        line.trim_end().split(' ').map(|s| s.parse().unwrap()).collect();
     let sum: i32 = numbers.iter().sum();
     println!("{}", sum);
 }""")
