@@ -1,4 +1,4 @@
-FROM debian:stretch
+FROM debian:bookworm
 COPY . /tmp/jd4
 RUN apt-get update && \
     apt-get install -y \
@@ -8,11 +8,11 @@ RUN apt-get update && \
             python3-dev \
             g++ \
             fp-compiler \
-            openjdk-8-jdk-headless \
-            python \
-            php7.0-cli \
+            openjdk-17-jdk-headless \
+            python-is-python3 \
+            php8.2-cli \
             rustc \
-            haskell-platform \
+            ghc \
             libjavascriptcoregtk-4.0-bin \
             golang \
             ruby \
