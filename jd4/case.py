@@ -23,6 +23,7 @@ MAX_STDERR_SIZE = 8192
 DEFAULT_TIME_NS = 1000000000
 DEFAULT_MEMORY_BYTES = 268435456
 PROCESS_LIMIT = 64
+_yaml_safe = yaml.YAML(typ='safe')
 
 class CaseBase:
     def __init__(self, time_limit_ns, memory_limit_bytes, process_limit, score):
@@ -255,7 +256,7 @@ def read_legacy_cases(config, open):
                           int(score_str))
 
 def read_yaml_cases(config, open):
-    for case in yaml.YAML(typ='safe').load(config)['cases']:
+    for case in _yaml_safe.load(config)['cases']:
         if 'judge' not in case:
             yield DefaultCase(partial(open, case['input']),
                               partial(open, case['output']),
