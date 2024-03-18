@@ -6,6 +6,7 @@ from jd4.case import read_cases, APlusBCase
 from jd4.cgroup import try_init_cgroup
 from jd4.compile import build
 from jd4.log import logger
+from jd4.pool import init as init_pool
 from jd4.status import STATUS_ACCEPTED, STATUS_WRONG_ANSWER, STATUS_RUNTIME_ERROR, \
                        STATUS_TIME_LIMIT_EXCEEDED, STATUS_MEMORY_LIMIT_EXCEEDED
 
@@ -16,7 +17,6 @@ class LanguageTest(TestCase):
     """Run A+B problem on every languages."""
     @classmethod
     def setUpClass(cls):
-        try_init_cgroup()
         cls.cases = list(read_cases(open(path.join(
             path.dirname(__file__), 'testdata/aplusb.zip'), 'rb')))
 
@@ -128,7 +128,6 @@ class Program {
 class StatusTest(TestCase):
     @classmethod
     def setUpClass(cls):
-        try_init_cgroup()
         cls.case = APlusBCase(1, 2, 200000000, 33554432, 10)
 
     def do_status(self, expected_status, expected_score, code):
@@ -166,7 +165,6 @@ int main(void) {
 class CustomJudgeTest(TestCase):
     @classmethod
     def setUpClass(cls):
-        try_init_cgroup()
         cls.cases = list(read_cases(open(path.join(
             path.dirname(__file__), 'testdata/decompose-sum.zip'), 'rb')))
 
@@ -200,6 +198,9 @@ int main(void) {
     scanf("%d", &sum);
     printf("%d %d\\n", 42, sum - 42);
 }""")
+
+try_init_cgroup()
+init_pool()
 
 if __name__ == '__main__':
     main()
