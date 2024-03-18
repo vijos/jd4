@@ -137,8 +137,6 @@ async def wait_cgroup(sock, execute_task, cpu_limit_ns, idle_limit_ns,
                 return cgroup.cpu_usage_ns, cgroup.memory_usage_bytes
             except TimeoutError:
                 pass
-    except Exception as e:
-        logger.error(e)
     finally:
         while cgroup.kill():
             await sleep(.001)
