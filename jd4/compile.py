@@ -22,6 +22,7 @@ PROCESS_LIMIT = 64
 _CONFIG_DIR = user_config_dir('jd4')
 _LANGS_FILE = path.join(_CONFIG_DIR, 'langs.yaml')
 _langs = dict()
+_yaml = yaml.YAML()
 
 class Executable:
     def __init__(self, execute_file, execute_args):
@@ -155,7 +156,7 @@ async def build(lang, code):
 def _init():
     try:
         with open(_LANGS_FILE) as file:
-            langs_config = yaml.load(file, Loader=yaml.RoundTripLoader)
+            langs_config = _yaml.load(file)
     except FileNotFoundError:
         logger.error('Language file %s not found.', _LANGS_FILE)
         exit(1)

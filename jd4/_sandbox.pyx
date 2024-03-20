@@ -50,10 +50,14 @@ def enter_namespace(root_dir, in_dir, out_dir):
     mkdir('dev')
     bind_mount('/dev/null', 'dev/null', False, True, True, False)
     bind_mount('/dev/urandom', 'dev/urandom', False, True, True, False)
+    mkdir('.cache')
+    mount('.cache', '.cache', 'tmpfs', MS_NOSUID, 'size=16m,nr_inodes=4k')
     mkdir('tmp')
-    mount('tmp', 'tmp', 'tmpfs', MS_NOSUID, "size=16m,nr_inodes=4k")
+    mount('tmp', 'tmp', 'tmpfs', MS_NOSUID, 'size=16m,nr_inodes=4k')
     bind_or_link('/bin', 'bin')
     bind_or_link('/etc/alternatives', 'etc/alternatives')
+    bind_or_link('/etc/java-17-openjdk', 'etc/java-17-openjdk')
+    bind_or_link('/etc/mono', 'etc/mono')
     bind_or_link('/lib', 'lib')
     bind_or_link('/lib64', 'lib64')
     bind_or_link('/usr/bin', 'usr/bin')
@@ -65,6 +69,12 @@ def enter_namespace(root_dir, in_dir, out_dir):
     bind_or_link('/var/lib/ghc', 'var/lib/ghc')
     bind_mount(in_dir, 'in', True, False, True, True)
     bind_mount(out_dir, 'out', True, False, True, False)
+    write_text_file('etc/fpc.cfg', '''
+        -Sgic
+        -Fu/usr/lib/$fpctarget-gnu/fpc/$fpcversion/units/$fpctarget
+        -Fu/usr/lib/$fpctarget-gnu/fpc/$fpcversion/units/$fpctarget/*
+        -Fu/usr/lib/$fpctarget-gnu/fpc/$fpcversion/units/$fpctarget/rtl
+    ''')
     write_text_file('etc/passwd', 'icebox:x:1000:1000:icebox:/:/bin/bash\n')
     mkdir('old_root')
     pivot_root('.', 'old_root')

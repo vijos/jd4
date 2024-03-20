@@ -7,11 +7,12 @@ from jd4.log import logger
 
 _CONFIG_DIR = user_config_dir('jd4')
 _CONFIG_FILE = path.join(_CONFIG_DIR, 'config.yaml')
+_yaml = yaml.YAML()
 
 def _load_config():
     try:
         with open(_CONFIG_FILE, encoding='utf-8') as file:
-            return yaml.load(file, Loader=yaml.RoundTripLoader)
+            return _yaml.load(file)
     except FileNotFoundError:
         logger.error('Config file %s not found.', _CONFIG_FILE)
         exit(1)
@@ -21,7 +22,7 @@ config = _load_config()
 async def save_config():
     def do_save_config():
         with open(_CONFIG_FILE, 'w', encoding='utf-8') as file:
-            yaml.dump(config, file, Dumper=yaml.RoundTripDumper)
+            _yaml.dump(config, file)
 
     await get_event_loop().run_in_executor(None, do_save_config)
 

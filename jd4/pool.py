@@ -15,7 +15,7 @@ def put_sandbox(*sandboxes):
     for sandbox in sandboxes:
         _queue.put_nowait(sandbox)
 
-def _init():
+def init():
     parallelism = config.get('parallelism', 2)
     if parallelism < 2:
         logger.warning('Parallelism less than 2, custom judge will not be supported.')
@@ -25,5 +25,3 @@ def _init():
     _lock = Lock()
     _queue = LifoQueue()
     put_sandbox(*get_event_loop().run_until_complete(sandboxes_task))
-
-_init()
