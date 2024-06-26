@@ -1,5 +1,5 @@
 from aiohttp import ClientError
-from asyncio import gather, get_event_loop, sleep, shield, wait, FIRST_COMPLETED
+from asyncio import create_task, gather, get_event_loop, sleep, shield, wait, FIRST_COMPLETED
 from io import BytesIO
 
 from jd4.api import VJ4Session
@@ -9,6 +9,7 @@ from jd4.cgroup import try_init_cgroup
 from jd4.compile import build
 from jd4.config import config, save_config
 from jd4.log import logger
+from jd4.pool import init as init_pool
 from jd4.status import STATUS_ACCEPTED, STATUS_COMPILE_ERROR, \
     STATUS_SYSTEM_ERROR, STATUS_JUDGING, STATUS_COMPILING
 
@@ -50,13 +51,13 @@ class JudgeHandler:
             else:
                 raise Exception('Unsupported type: {}'.format(self.type))
         except CompileError:
-            self.end(status=STATUS_COMPILE_ERROR, score=0, time_ms=0, memory_kb=0)
+            await self.end(status=STATUS_COMPILE_ERROR, score=0, time_ms=0, memory_kb=0)
         except ClientError:
             raise
         except Exception as e:
             logger.exception(e)
-            self.next(judge_text=repr(e))
-            self.end(status=STATUS_SYSTEM_ERROR, score=0, time_ms=0, memory_kb=0)
+            await self.next(judge_text=repr(e))
+            await self.end(status=STATUS_SYSTEM_ERROR, score=0, time_ms=0, memory_kb=0)
 
     async def update_problem_data(self):
         domain_id = self.request.pop('domain_id')
@@ -82,9 +83,9 @@ class JudgeHandler:
             await self.judge(cases_file, package)
 
     async def build(self):
-        self.next(status=STATUS_COMPILING)
+        await self.next(status=STATUS_COMPILING)
         package, message, _, _ = await shield(build(self.lang, self.code.encode()))
-        self.next(compiler_text=message)
+        await self.next(compiler_text=message)
         if not package:
             logger.debug('Compile error: %s', message)
             raise CompileError(message)
@@ -92,7 +93,7 @@ class JudgeHandler:
 
     async def judge(self, cases_file, package):
         loop = get_event_loop()
-        self.next(status=STATUS_JUDGING, progress=0)
+        await self.next(status=STATUS_JUDGING, progress=0)
         cases = list(read_cases(cases_file))
         total_status = STATUS_ACCEPTED
         total_score = 0
@@ -107,27 +108,27 @@ class JudgeHandler:
                 judge_text = stderr.decode(encoding='utf-8', errors='replace')
             else:
                 judge_text = ''
-            self.next(status=STATUS_JUDGING,
-                      case={'status': status,
-                            'score': score,
-                            'time_ms': time_usage_ns // 1000000,
-                            'memory_kb': memory_usage_bytes // 1024,
-                            'judge_text': judge_text},
-                      progress=(index + 1) * 100 // len(cases))
+            await self.next(status=STATUS_JUDGING,
+                            case={'status': status,
+                                  'score': score,
+                                  'time_ms': time_usage_ns // 1000000,
+                                  'memory_kb': memory_usage_bytes // 1024,
+                                  'judge_text': judge_text},
+                            progress=(index + 1) * 100 // len(cases))
             total_status = max(total_status, status)
             total_score += score
             total_time_usage_ns += time_usage_ns
             total_memory_usage_bytes = max(total_memory_usage_bytes, memory_usage_bytes)
-        self.end(status=total_status,
-                 score=total_score,
-                 time_ms=total_time_usage_ns // 1000000,
-                 memory_kb=total_memory_usage_bytes // 1024)
+        await self.end(status=total_status,
+                       score=total_score,
+                       time_ms=total_time_usage_ns // 1000000,
+                       memory_kb=total_memory_usage_bytes // 1024)
 
-    def next(self, **kwargs):
-        self.ws.send_json({'key': 'next', 'tag': self.tag, **kwargs})
+    async def next(self, **kwargs):
+        await self.ws.send_json({'key': 'next', 'tag': self.tag, **kwargs})
 
-    def end(self, **kwargs):
-        self.ws.send_json({'key': 'end', 'tag': self.tag, **kwargs})
+    async def end(self, **kwargs):
+        await self.ws.send_json({'key': 'end', 'tag': self.tag, **kwargs})
 
 async def update_problem_data(session):
     logger.info('Update problem data')
@@ -149,13 +150,12 @@ async def do_noop(session):
         await session.judge_noop()
 
 async def daemon():
-    try_init_cgroup()
-
     async with VJ4Session(config['server_url']) as session:
         while True:
             try:
                 await session.login_if_needed(config['uname'], config['password'])
-                done, pending = await wait([do_judge(session), do_noop(session)],
+                done, pending = await wait([create_task(do_judge(session)),
+                                            create_task(do_noop(session))],
                                            return_when=FIRST_COMPLETED)
                 for task in pending:
                     task.cancel()
@@ -165,5 +165,10 @@ async def daemon():
             logger.info('Retrying after %d seconds', RETRY_DELAY_SEC)
             await sleep(RETRY_DELAY_SEC)
 
-if __name__ == '__main__':
+def main():
+    try_init_cgroup()
+    init_pool()
     get_event_loop().run_until_complete(daemon())
+
+if __name__ == '__main__':
+    main()

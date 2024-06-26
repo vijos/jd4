@@ -1,5 +1,5 @@
-aiohttp<3
+aiohttp>=3.6.0,<3.8.0
 appdirs
 coloredlogs
 cython
-ruamel.yaml
+ruamel.yaml>=0.18.0
