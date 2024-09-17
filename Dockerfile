@@ -17,7 +17,8 @@ RUN apt-get update && \
             golang \
             ruby \
             mono-runtime \
-            mono-mcs && \
+            mono-mcs \
+            axel && \
     python3 -m venv /venv && \
     bash -c "source /venv/bin/activate && \
              pip install -r /tmp/jd4/requirements.txt && \
@@ -27,6 +28,9 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/* && \
     mkdir -p /root/.config/jd4 && \
     cp /tmp/jd4/examples/langs.yaml /root/.config/jd4/langs.yaml && \
-    rm -rf /tmp/jd4
+    rm -rf /tmp/jd4 && \
+    axel https://julialang-s3.julialang.org/bin/linux/x64/1.0/julia-1.0.0-linux-x86_64.tar.gz && \
+    tar xf julia-1.0.0-linux-x86_64.tar.gz --strip-components=1 -C /usr && \
+    rm julia-1.0.0-linux-x86_64.tar.gz
 CMD bash -c "source /venv/bin/activate && \
              python3 -m jd4.daemon"

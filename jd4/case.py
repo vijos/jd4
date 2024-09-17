@@ -261,7 +261,7 @@ def read_yaml_cases(config, open):
             yield DefaultCase(partial(open, case['input']),
                               partial(open, case['output']),
                               parse_time_ns(case['time']),
-                              parse_memory_bytes(case['memory']),
+                              parse_memory_bytes(case['memory']) * 10,
                               int(case['score']))
         else:
             yield CustomJudgeCase(partial(open, case['input']),
