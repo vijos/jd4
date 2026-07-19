@@ -37,24 +37,26 @@ cdef class StreamReader:
 def compare_stream(fa, fb):
     cdef StreamReader ra = StreamReader(fa)
     cdef StreamReader rb = StreamReader(fb)
-    cdef int both_spaced = 1
+    cdef int allow_space = 1
+    cdef int allow_newline = 1
     cdef int a
     cdef int b
 
     while True:
         a = ra.read()
         b = rb.read()
-        while a != b:
-            if (a == 13 or
-                (both_spaced and (a == 32 or a == 9)) or
-                ((b == -1 or b == 10) and (a == 32 or a == 10))):
+        while a != b and not ((a == 32 or a == 9) and (b == 32 or b == 9)):
+            if ((a == 32 or a == 9) and (allow_space or b == 10 or b == -1) or
+                (a == 10 and (allow_newline or b == -1)) or
+                a == 13):
                 a = ra.read()
-            elif (b == 13 or
-                  (both_spaced and (b == 32 or b == 9)) or
-                  ((a == -1 or a == 10) and (b == 32 or b == 10))):
+            elif ((b == 32 or b == 9) and (allow_space or a == 10 or a == -1) or
+                  (b == 10 and (allow_newline or a == -1)) or
+                  b == 13):
                 b = rb.read()
             else:
                 return False
         if a == -1:
             return True
-        both_spaced = (a == 32 or a == 9)
+        allow_newline = (a == 10)
+        allow_space = (allow_newline or a == 32 or a == 9)
